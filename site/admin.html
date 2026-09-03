@@ -17,7 +17,7 @@
 body{margin:0;background:var(--cream);color:var(--ink);font-family:var(--fb);-webkit-font-smoothing:antialiased}
 h1,h2,h3{font-family:var(--fh);font-weight:500;letter-spacing:.005em;margin:0;line-height:1.1}
 label{display:block;font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);margin:0 0 6px}
-input,textarea{width:100%;font-family:inherit;font-size:14px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--paper);color:var(--ink)}
+input,textarea,select{width:100%;font-family:inherit;font-size:14px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--paper);color:var(--ink)}
 input:focus,textarea:focus{outline:2px solid var(--g4);outline-offset:1px}
 textarea{resize:vertical;min-height:64px}
 button{font-family:var(--fh);cursor:pointer;border:none}
@@ -112,7 +112,9 @@ const app = document.getElementById('app');
 let importing = false;
 let importProgress = '';
 let session = null;
-let mosques = [];
+let items = [];
+let categories = [];
+let activeCategoryId = null;
 let editing = null;   // mosque row being edited, or {} for new
 let pendingFile = null;
 let loading = false;
@@ -125,16 +127,47 @@ async function init(){
   const { data } = await sb.auth.getSession();
   session = data.session;
   sb.auth.onAuthStateChange((_event, s)=>{ session = s; render(); });
-  if(session) await loadMosques();
+  if(session){ await loadCategories(); await loadItems(); }
   render();
 }
 
-async function loadMosques(){
+async function loadCategories(){
+  const { data, error } = await sb.from('categories').select('*').order('sort_order',{ascending:true});
+  if(error){ errorMsg = 'Санаттарды жүктеу қатесі: '+error.message; return; }
+  categories = data || [];
+  if(activeCategoryId && !categories.some(c=>c.id===activeCategoryId)) activeCategoryId = null;
+}
+
+async function addCategory(){
+  const nameKz = (window.prompt('Санат атауы (қазақша):') || '').trim();
+  if(!nameKz) return;
+  const nameRu = (window.prompt('Санат атауы (орысша). Бос қалдырсаңыз қазақшасы қолданылады:') || '').trim() || nameKz;
+  const key = nameKz.toLowerCase().replace(/[^a-zа-яәғқңөұүһі0-9]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,40) + '-' + Date.now().toString(36);
   loading = true; render();
-  const { data, error } = await sb.from('mosques').select('*').order('sort_order',{ascending:true}).order('created_at',{ascending:true});
+  try{
+    const { error } = await sb.from('categories').insert({ key, name_kz:nameKz, name_ru:nameRu, sort_order: categories.length });
+    if(error) throw error;
+    await loadCategories();
+    loading = false;
+    render();
+  }catch(e){
+    loading = false;
+    errorMsg = 'Санат қосу қатесі: '+(e.message||e);
+    render();
+  }
+}
+
+function selectCategoryFilter(id){
+  activeCategoryId = id || null;
+  render();
+}
+
+async function loadItems(){
+  loading = true; render();
+  const { data, error } = await sb.from('game_items').select('*').order('sort_order',{ascending:true}).order('created_at',{ascending:true});
   loading = false;
   if(error){ errorMsg = 'Тізімді жүктеу қатесі: '+error.message; render(); return; }
-  mosques = data || [];
+  items = data || [];
   render();
 }
 
@@ -155,17 +188,18 @@ async function login(e){
     render();
     return;
   }
-  await loadMosques();
+  await loadCategories();
+  await loadItems();
 }
 
 async function logout(){
   await sb.auth.signOut();
-  session = null; mosques = []; editing = null;
+  session = null; items = []; categories = []; editing = null;
   render();
 }
 
 function startNew(){
-  editing = { name_kz:'', name_ru:'', city_kz:'', city_ru:'', fact_kz:'', fact_ru:'', image_url:'', sort_order:(mosques.length) };
+  editing = { name_kz:'', name_ru:'', city_kz:'', city_ru:'', fact_kz:'', fact_ru:'', image_url:'', category_id:(activeCategoryId||(categories[0]&&categories[0].id)||''), sort_order:(items.length) };
   pendingFile = null; errorMsg=''; infoMsg='';
   render();
 }
@@ -175,7 +209,7 @@ function startEdit(m){
   render();
 }
 function startEditById(id){
-  const m = mosques.find(x=>x.id===id);
+  const m = items.find(x=>x.id===id);
   if(m) startEdit(m);
 }
 function cancelEdit(){ editing=null; pendingFile=null; render(); }
@@ -192,7 +226,7 @@ function onFilePicked(input){
   reader.readAsDataURL(file);
 }
 
-async function saveMosque(e){
+async function saveItem(e){
   e.preventDefault();
   errorMsg=''; infoMsg='';
   const f = editing;
@@ -202,14 +236,19 @@ async function saveMosque(e){
   f.city_ru = document.getElementById('f_city_ru').value.trim() || f.city_kz;
   f.fact_kz = document.getElementById('f_fact_kz').value.trim();
   f.fact_ru = document.getElementById('f_fact_ru').value.trim() || f.fact_kz;
+  f.category_id = document.getElementById('f_category').value;
   f.sort_order = parseInt(document.getElementById('f_sort').value,10) || 0;
 
   if(!f.name_kz || !f.city_kz || !f.fact_kz){
-    errorMsg = 'Атауын, өңірін және сипаттамасын (кемінде қазақша) толтырыңыз.';
+    errorMsg = 'Атауын, қосымша белгісін және сипаттамасын (кемінде қазақша) толтырыңыз.';
+    render(); return;
+  }
+  if(!f.category_id){
+    errorMsg = 'Санатты таңдаңыз.';
     render(); return;
   }
   if(!pendingFile && !f.image_url){
-    errorMsg = 'Мешіттің суретін жүктеңіз.';
+    errorMsg = 'Суретін жүктеңіз.';
     render(); return;
   }
 
@@ -225,41 +264,47 @@ async function saveMosque(e){
     }
     const row = {
       name_kz:f.name_kz, name_ru:f.name_ru, city_kz:f.city_kz, city_ru:f.city_ru,
-      fact_kz:f.fact_kz, fact_ru:f.fact_ru, image_url:f.image_url, sort_order:f.sort_order
+      fact_kz:f.fact_kz, fact_ru:f.fact_ru, image_url:f.image_url, category_id:f.category_id,
+      sort_order:f.sort_order
     };
     if(f.id){
-      const { error } = await sb.from('mosques').update(row).eq('id', f.id);
+      const { error } = await sb.from('game_items').update(row).eq('id', f.id);
       if(error) throw error;
       infoMsg = 'Сақталды.';
     } else {
-      const { error } = await sb.from('mosques').insert(row);
+      const { error } = await sb.from('game_items').insert(row);
       if(error) throw error;
       infoMsg = 'Қосылды.';
     }
     editing = null; pendingFile = null;
-    await loadMosques();
+    await loadItems();
   }catch(err){
     errorMsg = 'Сақтау қатесі: '+(err.message||err);
     loading = false; render();
   }
 }
 
-async function deleteMosque(m){
+async function deleteItem(m){
   if(!confirm('"'+m.name_kz+'" жоюды растайсыз ба?')) return;
   loading = true; render();
-  const { error } = await sb.from('mosques').delete().eq('id', m.id);
+  const { error } = await sb.from('game_items').delete().eq('id', m.id);
   loading = false;
   if(error){ errorMsg = 'Жою қатесі: '+error.message; render(); return; }
   infoMsg = 'Жойылды.';
-  await loadMosques();
+  await loadItems();
 }
-function deleteMosqueById(id){
-  const m = mosques.find(x=>x.id===id);
-  if(m) deleteMosque(m);
+function deleteItemById(id){
+  const m = items.find(x=>x.id===id);
+  if(m) deleteItem(m);
 }
 
 async function importBuiltins(){
   if(importing) return;
+  const mosquesCat = categories.find(c=>c.key==='mosques');
+  if(!mosquesCat){
+    errorMsg = '«Мешіттер» санаты табылмады. Алдымен supabase/categories.sql орындалғанын тексеріңіз.';
+    render(); return;
+  }
   importing = true; errorMsg=''; infoMsg=''; importProgress='Басталды…';
   render();
   let added = 0, skipped = 0;
@@ -267,7 +312,7 @@ async function importBuiltins(){
     const b = BUILTIN_MOSQUES[i];
     importProgress = (i+1)+'/'+BUILTIN_MOSQUES.length+': '+b.name_kz;
     render();
-    const already = mosques.some(m=>m.name_kz===b.name_kz && m.city_kz===b.city_kz);
+    const already = items.some(m=>m.name_kz===b.name_kz && m.city_kz===b.city_kz);
     if(already){ skipped++; continue; }
     try{
       const resp = await fetch(BUILTIN_BASE + b.id + '.jpg');
@@ -277,22 +322,23 @@ async function importBuiltins(){
       const { error: upErr } = await sb.storage.from(BUCKET).upload(path, blob, { upsert:false, contentType:'image/jpeg' });
       if(upErr) throw upErr;
       const { data: pub } = sb.storage.from(BUCKET).getPublicUrl(path);
-      const { error: insErr } = await sb.from('mosques').insert({
+      const { error: insErr } = await sb.from('game_items').insert({
         name_kz:b.name_kz, name_ru:b.name_ru, city_kz:b.city_kz, city_ru:b.city_ru,
-        fact_kz:b.fact_kz, fact_ru:b.fact_ru, image_url:pub.publicUrl, sort_order:i
+        fact_kz:b.fact_kz, fact_ru:b.fact_ru, image_url:pub.publicUrl,
+        category_id:mosquesCat.id, sort_order:i
       });
       if(insErr) throw insErr;
       added++;
     }catch(e){
       importing = false; importProgress='';
       errorMsg = 'Импорт қатесі ('+b.name_kz+'): '+(e.message||e);
-      await loadMosques();
+      await loadItems();
       return;
     }
   }
   importing = false; importProgress='';
   infoMsg = added+' мешіт қосылды'+(skipped ? ', '+skipped+' бұрын қосылған болатын' : '')+'.';
-  await loadMosques();
+  await loadItems();
 }
 
 function renderLogin(){
@@ -313,9 +359,13 @@ function renderLogin(){
 function renderForm(){
   const f = editing;
   const preview = f._preview || f.image_url;
+  const catOptions = categories.map(c=>`<option value="${c.id}" ${f.category_id===c.id?'selected':''}>${esc(c.name_kz)}</option>`).join('');
   return `<div class="card" style="padding:20px;margin-bottom:22px">
-  <h2 style="font-size:18px;text-transform:uppercase;margin-bottom:16px">${f.id?'Мешітті өңдеу':'Жаңа мешіт'}</h2>
-  <form onsubmit="saveMosque(event)">
+  <h2 style="font-size:18px;text-transform:uppercase;margin-bottom:16px">${f.id?'Затты өңдеу':'Жаңа зат'}</h2>
+  <form onsubmit="saveItem(event)">
+    <div class="field"><label>Санат *</label>
+      <select id="f_category" required>${catOptions}</select>
+    </div>
     <div class="field">
       <label>Сурет</label>
       <div class="file-drop" onclick="document.getElementById('f_file').click()">
@@ -329,8 +379,8 @@ function renderForm(){
     <div class="grid2">
       <div class="field"><label>Атауы (қазақша) *</label><input id="f_name_kz" value="${esc(f.name_kz)}" required></div>
       <div class="field"><label>Атауы (орысша)</label><input id="f_name_ru" value="${esc(f.name_ru)}" placeholder="бос болса қазақшасы алынады"></div>
-      <div class="field"><label>Өңірі (қазақша) *</label><input id="f_city_kz" value="${esc(f.city_kz)}" required></div>
-      <div class="field"><label>Өңірі (орысша)</label><input id="f_city_ru" value="${esc(f.city_ru)}" placeholder="бос болса қазақшасы алынады"></div>
+      <div class="field"><label>Қосымша белгі (қазақша) *</label><input id="f_city_kz" value="${esc(f.city_kz)}" placeholder="мыс.: өңір, әріптің дыбысы, мамандығы" required></div>
+      <div class="field"><label>Қосымша белгі (орысша)</label><input id="f_city_ru" value="${esc(f.city_ru)}" placeholder="бос болса қазақшасы алынады"></div>
     </div>
     <div class="field"><label>Сипаттама (қазақша) *</label><textarea id="f_fact_kz" required>${esc(f.fact_kz)}</textarea></div>
     <div class="field"><label>Сипаттама (орысша)</label><textarea id="f_fact_ru" placeholder="бос болса қазақшасы алынады">${esc(f.fact_ru)}</textarea></div>
@@ -344,7 +394,8 @@ function renderForm(){
 }
 
 function renderDashboard(){
-  const rows = mosques.map(m=>`
+  const filtered = activeCategoryId ? items.filter(m=>m.category_id===activeCategoryId) : items;
+  const rows = filtered.map(m=>`
     <div class="mosque-row">
       <div class="thumb-9x16" style="background-image:url('${esc(m.image_url)}')"></div>
       <div style="flex:1;min-width:0">
@@ -352,8 +403,14 @@ function renderDashboard(){
         <div style="font-size:12px;color:var(--mut);margin-top:2px">${esc(m.city_kz)}</div>
       </div>
       <button class="btn btn-ghost btn-sm" onclick="startEditById('${m.id}')">Өңдеу</button>
-      <button class="btn btn-danger btn-sm" onclick="deleteMosqueById('${m.id}')">Жою</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteItemById('${m.id}')">Жою</button>
     </div>`).join('');
+
+  const catPills = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+    <button class="btn btn-sm" onclick="selectCategoryFilter(null)" style="background:${activeCategoryId?'var(--paper)':'#0E3B2E'};color:${activeCategoryId?'var(--g8)':'#fff'};border:1px solid var(--line)">Барлығы</button>
+    ${categories.map(c=>`<button class="btn btn-sm" onclick="selectCategoryFilter('${c.id}')" style="background:${activeCategoryId===c.id?'#0E3B2E':'var(--paper)'};color:${activeCategoryId===c.id?'#fff':'var(--g8)'};border:1px solid var(--line)">${esc(c.name_kz)}</button>`).join('')}
+    <button class="btn btn-sm btn-ghost" onclick="addCategory()">+ Санат</button>
+  </div>`;
 
   return `<div class="wrap">
   <div class="top">
@@ -361,7 +418,7 @@ function renderDashboard(){
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-8.2M20 21v-8.2M4.2 12.8C4.2 8.4 7.7 4.9 12 4.9s7.8 3.5 7.8 7.9M12 4.9V2.4M1.8 21h20.4M9 21v-3.7a3 3 0 0 1 6 0V21"/></svg>
     </div>
     <div style="flex:1;min-width:0">
-      <h1 style="font-size:20px;text-transform:uppercase">Мешіттер — Admin</h1>
+      <h1 style="font-size:20px;text-transform:uppercase">Мазмұн — Admin</h1>
       <span class="badge">${esc(session.user.email)}</span>
     </div>
     <button class="btn btn-ghost btn-sm" onclick="logout()">Шығу</button>
@@ -370,16 +427,17 @@ function renderDashboard(){
   ${errorMsg?`<div class="err">${esc(errorMsg)}</div>`:''}
   ${infoMsg?`<div class="msg">${esc(infoMsg)}</div>`:''}
 
-  ${editing ? renderForm() : `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
-    <button class="btn btn-primary" onclick="startNew()">+ Жаңа мешіт қосу</button>
+  ${editing ? renderForm() : `${catPills}
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
+    <button class="btn btn-primary" onclick="startNew()" ${categories.length?'':'disabled'}>+ Жаңа зат қосу</button>
     <button class="btn btn-ghost" onclick="importBuiltins()" ${importing?'disabled':''}>
       ${importing ? '<span class="spinner" style="border-color:rgba(20,82,62,.25);border-top-color:var(--g7)"></span>&nbsp; '+esc(importProgress) : 'Сайттағы 14 мешітті импорттау'}
     </button>
   </div>`}
 
   <div class="card">
-    ${loading && !mosques.length ? `<div style="padding:24px;text-align:center;color:var(--mut)">Жүктелуде…</div>` :
-      mosques.length ? rows : `<div style="padding:24px;text-align:center;color:var(--mut)">Әзірге мешіт қосылмаған.</div>`}
+    ${loading && !items.length ? `<div style="padding:24px;text-align:center;color:var(--mut)">Жүктелуде…</div>` :
+      filtered.length ? rows : `<div style="padding:24px;text-align:center;color:var(--mut)">Әзірге бұл санатта ештеңе жоқ.</div>`}
   </div>
   </div>`;
 }
