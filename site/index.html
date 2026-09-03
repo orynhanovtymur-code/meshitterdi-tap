@@ -47,6 +47,8 @@ button{font-family:inherit;border:none;background:none;padding:0}
 .glabel{display:block;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin:0 0 6px}
 .ginput{width:100%;font-family:var(--fb);font-size:14px;padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:var(--paper);color:var(--ink)}
 .ginput:focus{outline:2px solid var(--g4);outline-offset:1px}
+.dspinner{display:inline-block;width:22px;height:22px;border-radius:50%;border:3px solid rgba(255,255,255,.25);border-top-color:#fff;animation:dspin .8s linear infinite}
+@keyframes dspin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion: reduce){*{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important}}
 </style>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -161,6 +163,9 @@ let state = { screen:'splash', lang:'kz', coins:1240, found:[], name:'Ойынш
   playerId:null, bestScore:0, leaderboard:null,
   authMode:'register', authError:'', authInfo:'', authLoading:false,
   settingsError:'', settingsInfo:'', settingsLoading:false, prevScreen:'home',
+  duelRoom:null, duelRole:null, duelChannel:null, duelError:'', duelLoading:false,
+  duelCountdownN:3, duelDeckIds:[], duelFlipped:[], duelMatches:[], duelLocked:false,
+  duelOpponentId:null, duelOpponentName:'', duelResult:null,
   levelId:'easy', cards:[], flipped:[], matched:[], justMatched:[],
   moves:0, left:90, elapsed:0, sheet:null, score:0, earned:0, stars:3, toast:null, locked:false };
 
@@ -348,6 +353,281 @@ async function fetchLeaderboard(){
     state.leaderboard = state.leaderboard || [];
   }
   if(state.screen==='board') render();
+}
+
+function genRoomCode(){
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let s = '';
+  for(let i=0;i<6;i++) s += chars[Math.floor(Math.random()*chars.length)];
+  return s;
+}
+
+function teardownDuelChannel(){
+  if(sb && state.duelChannel){ sb.removeChannel(state.duelChannel); }
+  state.duelChannel = null;
+}
+
+function subscribeDuelRoom(roomId){
+  teardownDuelChannel();
+  state.duelChannel = sb.channel('duel-'+roomId)
+    .on('postgres_changes', {event:'UPDATE', schema:'public', table:'duel_rooms', filter:'id=eq.'+roomId}, payload=>{
+      onDuelRoomUpdate(payload.new);
+    })
+    .on('postgres_changes', {event:'INSERT', schema:'public', table:'duel_matches', filter:'room_id=eq.'+roomId}, payload=>{
+      onDuelMatchInsert(payload.new);
+    })
+    .subscribe();
+}
+
+function goDuelMenu(){
+  state.duelError=''; state.duelRoom=null; state.duelRole=null;
+  teardownDuelChannel();
+  setState({screen:'duelMenu'});
+}
+
+function leaveDuel(){
+  teardownDuelChannel();
+  state.duelRoom=null; state.duelRole=null; state.duelResult=null;
+  setState({screen:'home'});
+}
+
+async function createDuelRoom(){
+  if(!sb || !state.playerId || state.duelLoading) return;
+  state.duelError=''; state.duelLoading=true; render();
+  try{
+    let room = null, lastErr = null;
+    for(let attempt=0; attempt<5 && !room; attempt++){
+      const code = genRoomCode();
+      const { data, error } = await sb.from('duel_rooms').insert({ host_id: state.playerId, code, pairs: 8 }).select().maybeSingle();
+      if(!error){ room = data; break; }
+      lastErr = error;
+      if(error.code !== '23505') break;
+    }
+    if(!room) throw (lastErr || new Error('Бөлме жасалмады.'));
+    state.duelRoom = room;
+    state.duelRole = 'host';
+    subscribeDuelRoom(room.id);
+    state.duelLoading = false;
+    setState({screen:'duelWait'});
+  }catch(err){
+    state.duelLoading = false;
+    state.duelError = err.message || String(err);
+    render();
+  }
+}
+
+async function submitJoinDuel(e){
+  e.preventDefault();
+  if(state.duelLoading) return;
+  const code = document.getElementById('duel_code').value.trim().toUpperCase();
+  state.duelError='';
+  if(!code){
+    state.duelError = state.lang==='kz' ? 'Кодты енгізіңіз.' : 'Введите код.';
+    render(); return;
+  }
+  state.duelLoading = true; render();
+  try{
+    const { data: room, error } = await sb.from('duel_rooms').select('*').eq('code', code).maybeSingle();
+    if(error) throw error;
+    if(!room) throw new Error(state.lang==='kz' ? 'Бөлме табылмады.' : 'Комната не найдена.');
+    if(room.host_id === state.playerId) throw new Error(state.lang==='kz' ? 'Өз бөлмеңізге қосыла алмайсыз.' : 'Нельзя присоединиться к своей комнате.');
+    if(room.status !== 'waiting' || room.guest_id) throw new Error(state.lang==='kz' ? 'Бұл бөлме бос емес.' : 'Эта комната уже занята.');
+    const { data: updated, error: updErr } = await sb.from('duel_rooms')
+      .update({ guest_id: state.playerId, status:'countdown' })
+      .eq('id', room.id).eq('status','waiting').is('guest_id', null)
+      .select().maybeSingle();
+    if(updErr) throw updErr;
+    if(!updated) throw new Error(state.lang==='kz' ? 'Бөлмеге басқа біреу қосылып үлгерді.' : 'В комнату уже кто-то вошёл.');
+    state.duelRoom = updated;
+    state.duelRole = 'guest';
+    state.duelOpponentId = updated.host_id;
+    subscribeDuelRoom(updated.id);
+    state.duelLoading = false;
+    await loadDuelOpponentName();
+    enterDuelCountdown();
+  }catch(err){
+    state.duelLoading = false;
+    state.duelError = err.message || String(err);
+    render();
+  }
+}
+
+async function loadDuelOpponentName(){
+  if(!state.duelOpponentId) return;
+  try{
+    const { data } = await sb.from('players').select('name').eq('id', state.duelOpponentId).maybeSingle();
+    state.duelOpponentName = (data && data.name) || (state.lang==='kz' ? 'Досың' : 'Друг');
+  }catch(e){
+    state.duelOpponentName = state.lang==='kz' ? 'Досың' : 'Друг';
+  }
+}
+
+function onDuelRoomUpdate(row){
+  const prevStatus = state.duelRoom ? state.duelRoom.status : null;
+  state.duelRoom = row;
+  if(row.status==='countdown' && prevStatus==='waiting'){
+    state.duelOpponentId = state.duelRole==='host' ? row.guest_id : row.host_id;
+    loadDuelOpponentName().then(()=>{
+      if(state.screen==='duelWait') enterDuelCountdown();
+    });
+    return;
+  }
+  if(row.status==='playing' && state.screen==='duelCountdown'){
+    startDuelGameFromRoom(row);
+    return;
+  }
+  if(row.status==='finished' && state.screen==='duelGame'){
+    computeDuelResult(row);
+    return;
+  }
+  if(state.screen==='duelWait') render();
+}
+
+function enterDuelCountdown(){
+  state.duelCountdownN = 3;
+  setState({screen:'duelCountdown'});
+  const tick = ()=>{
+    if(state.screen!=='duelCountdown') return;
+    state.duelCountdownN -= 1;
+    if(state.duelCountdownN <= 0){
+      if(state.duelRole==='host') hostStartDuelGame();
+      return;
+    }
+    render();
+    setTimeout(tick, 850);
+  };
+  setTimeout(tick, 850);
+}
+
+async function hostStartDuelGame(){
+  const room = state.duelRoom;
+  if(!room) return;
+  const pairs = room.pairs || 8;
+  const pool = MOSQUES.slice().sort(()=>Math.random()-0.5).slice(0,pairs);
+  const deck = pool.concat(pool).sort(()=>Math.random()-0.5).map(m=>m.id);
+  try{
+    const { data, error } = await sb.from('duel_rooms')
+      .update({ status:'playing', deck })
+      .eq('id', room.id).eq('status','countdown')
+      .select().maybeSingle();
+    if(error) throw error;
+    if(data) startDuelGameFromRoom(data);
+  }catch(e){
+    console.warn('Duel start failed:', e.message||e);
+  }
+}
+
+function startDuelGameFromRoom(row){
+  state.duelRoom = row;
+  state.duelDeckIds = row.deck || [];
+  state.duelFlipped = [];
+  state.duelMatches = [];
+  state.duelLocked = false;
+  state.duelResult = null;
+  if(!state.duelOpponentId) state.duelOpponentId = state.duelRole==='host' ? row.guest_id : row.host_id;
+  setState({screen:'duelGame'});
+}
+
+function duelFlip(i){
+  const s = state;
+  if(s.duelLocked) return;
+  if(s.duelMatches.some(m=>m.mosque_id===s.duelDeckIds[i])) return;
+  if(s.duelFlipped.indexOf(i)>-1) return;
+  if(s.duelFlipped.length===2) return;
+  const fl = s.duelFlipped.concat([i]);
+  const el = document.getElementById('dcrd'+i);
+  if(el) el.classList.add('flipped');
+  s.duelFlipped = fl;
+  if(fl.length<2) return;
+  s.duelLocked = true;
+  const idA = s.duelDeckIds[fl[0]], idB = s.duelDeckIds[fl[1]];
+  if(idA === idB){
+    claimDuelPair(idA, fl);
+  } else {
+    setTimeout(()=>{
+      fl.forEach(idx=>{ const c=document.getElementById('dcrd'+idx); if(c) c.classList.remove('flipped'); });
+      s.duelFlipped = [];
+      s.duelLocked = false;
+    }, 700);
+  }
+}
+
+async function claimDuelPair(mosqueId, fl){
+  try{
+    const { error } = await sb.from('duel_matches').insert({
+      room_id: state.duelRoom.id, mosque_id: mosqueId, claimed_by: state.playerId
+    });
+    if(error){
+      fl.forEach(idx=>{ const c=document.getElementById('dcrd'+idx); if(c) c.classList.remove('flipped'); });
+      state.duelFlipped = [];
+      state.duelLocked = false;
+      render();
+      return;
+    }
+    if(!state.duelMatches.some(m=>m.mosque_id===mosqueId)){
+      state.duelMatches.push({mosque_id:mosqueId, claimed_by: state.playerId});
+    }
+    state.duelFlipped = [];
+    state.duelLocked = false;
+    render();
+    maybeFinishDuel();
+  }catch(e){
+    console.warn('Claim failed:', e.message||e);
+    state.duelLocked = false;
+    render();
+  }
+}
+
+function onDuelMatchInsert(row){
+  if(!state.duelMatches.some(m=>m.mosque_id===row.mosque_id)){
+    state.duelMatches.push(row);
+  }
+  if(state.screen==='duelGame'){
+    render();
+    maybeFinishDuel();
+  }
+}
+
+function maybeFinishDuel(){
+  const room = state.duelRoom;
+  if(!room) return;
+  const pairs = room.pairs || 8;
+  if(state.duelMatches.length < pairs) return;
+  if(state.duelRole==='host' && room.status==='playing'){
+    const myCount = state.duelMatches.filter(m=>m.claimed_by===state.playerId).length;
+    const oppCount = state.duelMatches.length - myCount;
+    const winnerId = myCount===oppCount ? null : (myCount>oppCount ? state.playerId : state.duelOpponentId);
+    sb.from('duel_rooms').update({status:'finished', winner_id: winnerId}).eq('id',room.id).eq('status','playing')
+      .then(({error})=>{ if(error) console.warn('Duel finish write failed:', error.message); });
+  }
+  computeDuelResult(Object.assign({}, room, {status:'finished'}));
+}
+
+function computeDuelResult(row){
+  state.duelRoom = row;
+  const myCount = state.duelMatches.filter(m=>m.claimed_by===state.playerId).length;
+  const oppCount = state.duelMatches.length - myCount;
+  state.duelResult = { myCount, oppCount, win: myCount>oppCount, draw: myCount===oppCount };
+  if(myCount>oppCount){
+    const coins = state.coins + 150;
+    state.coins = coins;
+    persist({coins});
+  }
+  if(state.screen!=='duelResult') setState({screen:'duelResult'});
+  else render();
+}
+
+function copyDuelCode(){
+  const room = state.duelRoom;
+  if(!room) return;
+  const text = room.code;
+  const done = ()=>toast(state.lang==='kz' ? 'Код көшірілді' : 'Код скопирован');
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(done, done); return;
+    }
+  }catch(e){}
+  done();
 }
 
 function goSettings(){
@@ -670,6 +950,10 @@ function screenHome(t,s){
   <div onclick="goLevels()" data-hover style="margin-top:20px;height:56px;border-radius:19px;background:linear-gradient(150deg,#E7C765,#C9A227);display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer;box-shadow:0 14px 26px -10px rgba(201,162,39,.7),inset 0 1px 0 rgba(255,255,255,.45)">
   <span style="font-family:var(--fh);font-size:19px;color:#3A2D06;text-transform:uppercase;letter-spacing:.03em">${esc(t.start)}</span>
   ${svg.arrow.replaceAll('{{s}}','19').replace('{{c}}','#3A2D06')}</div>
+  <div onclick="goDuelMenu()" data-hover style="margin-top:10px;height:48px;border-radius:17px;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;gap:9px;cursor:pointer">
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="8.5" cy="8" r="3"/><path d="M2.5 20c0-3 2.7-5 6-5s6 2 6 5"/><circle cx="17" cy="8.5" r="2.4"/><path d="M15.8 12.2c2.3.3 4.2 1.9 4.7 4.3"/></svg>
+  <span style="font-family:var(--fh);font-size:15px;color:#fff;text-transform:uppercase;letter-spacing:.03em">${s.lang==='kz'?'Досыңмен ойнау':'Играть с другом'}</span>
+  </div>
   <div style="display:flex;gap:8px;margin-top:16px">
   <div style="flex:1;padding:11px 12px;border-radius:15px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.11)">
   <div style="font-family:var(--fh);font-size:22px;color:#fff;line-height:1">${s.found.length}<span style="font-size:12px;color:rgba(255,255,255,.42)">/${MOSQUES.length}</span></div>
@@ -1042,6 +1326,137 @@ function screenSettings(t,s){
   </div>`;
 }
 
+function screenDuelMenu(t,s){
+  return `<div class="sc" style="position:absolute;inset:0;overflow-y:auto;padding:24px 0 40px;animation:fade .28s ease">
+  <div style="display:flex;align-items:center;gap:12px;padding:4px 20px 6px">
+  <div onclick="goHome()" data-hover style="width:38px;height:38px;border-radius:13px;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;cursor:pointer;color:var(--g8)">${svg.back}</div>
+  <h3 style="font-size:24px;text-transform:uppercase">${s.lang==='kz'?'Досыңмен ойнау':'Игра с другом'}</h3>
+  </div>
+  <div style="padding:18px 22px 0">
+  <div onclick="createDuelRoom()" data-hover style="position:relative;border-radius:26px;overflow:hidden;padding:22px;cursor:pointer;background:linear-gradient(158deg,#1B6B50,#0E3B2E 68%);box-shadow:0 22px 40px -22px rgba(14,59,46,.7)">
+  <div style="position:absolute;inset:0;opacity:.5;background:repeating-conic-gradient(from 22.5deg at 88% 8%,rgba(255,255,255,.055) 0deg 11deg,transparent 11deg 22.5deg)"></div>
+  <div style="position:relative;display:flex;align-items:center;gap:14px">
+  <div style="width:52px;height:52px;border-radius:18px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.28);display:grid;place-items:center;flex:none">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></div>
+  <div style="flex:1;min-width:0">
+  <div style="font-family:var(--fh);font-size:20px;color:#fff;text-transform:uppercase">${s.lang==='kz'?'Бөлме құру':'Создать комнату'}</div>
+  <div style="margin-top:3px;font-size:12px;color:rgba(255,255,255,.6)">${s.lang==='kz'?'Код аласың, досыңа жібересің':'Получишь код и отправишь другу'}</div>
+  </div>
+  ${svg.arrow.replaceAll('{{s}}','18').replace('{{c}}','rgba(255,255,255,.6)')}
+  </div></div>
+
+  <div style="display:flex;align-items:center;gap:10px;margin:22px 0">
+  <div style="flex:1;height:1px;background:var(--line)"></div>
+  <span style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--mut)">${s.lang==='kz'?'немесе':'или'}</span>
+  <div style="flex:1;height:1px;background:var(--line)"></div>
+  </div>
+
+  <form onsubmit="submitJoinDuel(event)">
+  <label class="glabel">${s.lang==='kz'?'Досыңның кодын енгіз':'Введи код друга'}</label>
+  <input id="duel_code" class="ginput" style="text-transform:uppercase;letter-spacing:.2em;font-family:var(--fh);font-size:18px;text-align:center" maxlength="6" placeholder="ABC123">
+  <button type="submit" data-hover style="width:100%;margin-top:12px;height:52px;border-radius:18px;background:linear-gradient(150deg,#E7C765,#C9A227);font-family:var(--fh);font-size:17px;color:#3A2D06;text-transform:uppercase;letter-spacing:.03em" ${s.duelLoading?'disabled':''}>${s.duelLoading?'…':(s.lang==='kz'?'Қосылу':'Присоединиться')}</button>
+  </form>
+  ${s.duelError?`<div style="margin-top:14px;padding:12px 14px;border-radius:14px;background:#FDECEC;border:1px solid rgba(190,60,60,.28);color:#A03232;font-size:12.5px;line-height:1.5">${esc(s.duelError)}</div>`:''}
+  </div>
+  </div>`;
+}
+
+function screenDuelWait(t,s){
+  const room = s.duelRoom;
+  const code = room ? room.code : '------';
+  return `<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 28px;background:linear-gradient(168deg,#14523E 0%,#0E3B2E 46%,#08251C 100%);animation:fade .3s ease">
+  <div style="width:70px;height:70px;border-radius:24px;background:linear-gradient(150deg,rgba(255,255,255,.22),rgba(255,255,255,.04));border:1px solid rgba(231,199,101,.42);display:grid;place-items:center;color:#E7C765;animation:float 3.2s ease-in-out infinite">
+  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M2 20.5c0-3.4 3.1-5.6 7-5.6s7 2.2 7 5.6M17.6 5.4a3.3 3.3 0 0 1 0 6.2M19.4 14.9c2.3.7 3.6 2.4 3.6 4.4"/></svg>
+  </div>
+  <h2 style="margin-top:22px;font-size:24px;color:#fff;text-transform:uppercase">${s.lang==='kz'?'Досыңды күтеміз':'Ждём друга'}</h2>
+  <p style="margin-top:8px;color:rgba(255,255,255,.6);font-size:13px;line-height:1.6;max-width:260px">${s.lang==='kz'?'Осы кодты досыңа жібер, ол «Досыммен ойнау» бөлімінен енгізсін':'Отправь этот код другу — пусть введёт его в разделе «Играть с другом»'}</p>
+  <div onclick="copyDuelCode()" style="margin-top:24px;padding:16px 26px;border-radius:20px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);cursor:pointer">
+  <div style="font-family:var(--fh);font-size:38px;letter-spacing:.25em;color:#E7C765">${esc(code)}</div>
+  <div style="margin-top:4px;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.45)">${s.lang==='kz'?'басып көшіру':'нажми, чтобы скопировать'}</div>
+  </div>
+  <div class="dspinner" style="margin-top:28px;border-color:rgba(255,255,255,.2);border-top-color:#E7C765"></div>
+  <div onclick="leaveDuel()" data-hover style="margin-top:30px;height:44px;padding:0 20px;border-radius:16px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);display:flex;align-items:center;gap:8px;cursor:pointer;color:rgba(255,255,255,.7)">
+  ${svg.close}<span style="font-size:12.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase">${s.lang==='kz'?'Бас тарту':'Отмена'}</span></div>
+  </div>`;
+}
+
+function screenDuelCountdown(t,s){
+  const n = s.duelCountdownN;
+  return `<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(168deg,#14523E 0%,#0E3B2E 46%,#08251C 100%)">
+  <div style="font-family:var(--fh);font-size:120px;color:#E7C765;line-height:1;animation:pop .5s cubic-bezier(.2,.8,.2,1) both">${n>0?n:(s.lang==='kz'?'Бастады!':'Начали!')}</div>
+  <p style="margin-top:10px;color:rgba(255,255,255,.6);font-size:13px">${esc(s.duelOpponentName || (s.lang==='kz'?'Досың':'Друг'))} ${s.lang==='kz'?'қосылды':'подключился'}</p>
+  </div>`;
+}
+
+function screenDuelGame(t,s){
+  const pairs = (s.duelRoom && s.duelRoom.pairs) || 8;
+  const cols = 4;
+  const rows = Math.ceil((pairs*2)/cols);
+  const myCount = s.duelMatches.filter(m=>m.claimed_by===s.playerId).length;
+  const oppCount = s.duelMatches.length - myCount;
+  const cards = s.duelDeckIds.map((mosqueId,i)=>{
+    const m = MOSQUES.find(x=>x.id===mosqueId);
+    const claim = s.duelMatches.find(x=>x.mosque_id===mosqueId);
+    const isFlipped = s.duelFlipped.indexOf(i)>-1 || !!claim;
+    const isMatched = !!claim;
+    const mine = claim && claim.claimed_by===s.playerId;
+    if(!m) return '';
+    return `<div class="card${isFlipped?' flipped':''}${isMatched?' matched':''}" id="dcrd${i}" onclick="duelFlip(${i})">
+    <div class="card-inner">
+    <div class="card-back">
+    <div style="position:absolute;inset:0;background:repeating-conic-gradient(from 22.5deg at 50% 50%,rgba(255,255,255,.075) 0deg 11deg,transparent 11deg 22.5deg)"></div>
+    <div style="position:absolute;inset:7px;border-radius:12px;border:1px solid rgba(231,199,101,.24)"></div>${svg.cardBack}</div>
+    <div class="card-face">
+    <div role="img" aria-label="${esc(m.city[s.lang])}" style="position:absolute;inset:0;background-image:url('${m.img}');background-size:cover;background-position:center"></div>
+    <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(8,37,28,.5),transparent 62%)"></div>
+    ${claim?`<span style="position:absolute;top:6px;left:6px;height:18px;padding:0 7px;border-radius:6px;font-size:8px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;display:flex;align-items:center;${mine?'background:rgba(231,199,101,.9);color:#3A2D06':'background:rgba(8,37,28,.7);color:#fff'}">${mine?(s.lang==='kz'?'Сен':'Ты'):(s.lang==='kz'?'Ол':'Он')}</span>`:''}
+    <span style="position:absolute;left:6px;right:6px;bottom:5px;font-size:8.5px;font-weight:800;letter-spacing:.06em;color:rgba(255,255,255,.92);text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.city[s.lang])}</span></div></div>
+    </div>`;
+  }).join('');
+  return `<div style="position:absolute;inset:0;display:flex;flex-direction:column;animation:fade .28s ease">
+  <div style="padding:20px 18px 0">
+  <div style="display:flex;align-items:center;gap:10px">
+  <div onclick="leaveDuel()" data-hover style="width:36px;height:36px;border-radius:12px;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;cursor:pointer;color:var(--g8);flex:none">${svg.close}</div>
+  <div style="flex:1;display:flex;align-items:center;height:36px;border-radius:12px;background:var(--g1);border:1px solid var(--g2);overflow:hidden">
+  <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;height:100%;background:linear-gradient(150deg,#1B6B50,#0E3B2E)">
+  <span style="font-family:var(--fh);font-size:15px;color:#fff">${myCount}</span><span style="font-size:9.5px;color:rgba(255,255,255,.65);text-transform:uppercase;letter-spacing:.05em">${s.lang==='kz'?'Сен':'Ты'}</span>
+  </div>
+  <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;height:100%">
+  <span style="font-size:9.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.05em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70px">${esc(s.duelOpponentName||'—')}</span><span style="font-family:var(--fh);font-size:15px;color:var(--g8)">${oppCount}</span>
+  </div>
+  </div>
+  </div>
+  </div>
+  <div style="flex:1;min-height:0;overflow:hidden;padding:14px 18px 18px;display:flex;align-items:center;justify-content:center">
+  <div style="display:grid;gap:9px;margin:auto;grid-template-columns:repeat(${cols},minmax(0,1fr));grid-auto-rows:minmax(0,1fr);aspect-ratio:${cols*3}/${rows*4};height:100%;width:auto;max-width:100%;max-height:100%">${cards}</div>
+  </div></div>`;
+}
+
+function screenDuelResult(t,s){
+  const r = s.duelResult || {myCount:0,oppCount:0,win:false,draw:true};
+  const title = r.draw ? (s.lang==='kz'?'Тең түсті!':'Ничья!') : (r.win ? (s.lang==='kz'?'Сен жеңдің!':'Ты выиграл!') : (s.lang==='kz'?'Досың жеңді':'Друг выиграл'));
+  return `<div class="sc" style="position:absolute;inset:0;overflow-y:auto;background:linear-gradient(168deg,#1B6B50 0%,#0E3B2E 48%,#08251C 100%);animation:fade .3s ease">
+  <div style="position:relative;padding:56px 24px 40px;text-align:center">
+  <div style="position:relative;width:100px;height:100px;margin:0 auto;animation:pop .6s cubic-bezier(.2,.8,.2,1) both">
+  <div style="position:absolute;inset:0;border-radius:34px;background:${r.win?'linear-gradient(150deg,#E7C765,#C9A227)':'rgba(255,255,255,.1)'};border:${r.win?'none':'1px solid rgba(255,255,255,.2)'};box-shadow:${r.win?'0 22px 44px -14px rgba(201,162,39,.8)':'none'}"></div>
+  <div style="position:absolute;inset:0;display:grid;place-items:center;color:${r.win?'#3A2D06':'#fff'}">
+  <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M2 20.5c0-3.4 3.1-5.6 7-5.6s7 2.2 7 5.6M17.6 5.4a3.3 3.3 0 0 1 0 6.2M19.4 14.9c2.3.7 3.6 2.4 3.6 4.4"/></svg>
+  </div></div>
+  <h2 style="margin:22px 0 0;font-size:34px;color:#fff;text-transform:uppercase">${title}</h2>
+  <div style="margin-top:22px;display:flex;align-items:center;justify-content:center;gap:18px">
+  <div><div style="font-family:var(--fh);font-size:44px;color:#E7C765">${r.myCount}</div><div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.5);margin-top:2px">${s.lang==='kz'?'Сен':'Ты'}</div></div>
+  <div style="font-family:var(--fh);font-size:22px;color:rgba(255,255,255,.35)">:</div>
+  <div><div style="font-family:var(--fh);font-size:44px;color:#fff">${r.oppCount}</div><div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.5);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px">${esc(s.duelOpponentName||'—')}</div></div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:10px;margin-top:34px">
+  <div onclick="goDuelMenu()" data-hover style="height:56px;border-radius:19px;background:linear-gradient(150deg,#E7C765,#C9A227);display:flex;align-items:center;justify-content:center;gap:9px;cursor:pointer">
+  <span style="font-family:var(--fh);font-size:18px;color:#3A2D06;text-transform:uppercase;letter-spacing:.03em">${s.lang==='kz'?'Тағы ойнау':'Играть ещё'}</span></div>
+  <div onclick="leaveDuel()" data-hover style="display:flex;align-items:center;justify-content:center;gap:7px;height:44px;cursor:pointer;color:rgba(255,255,255,.6)">${svg.home.replaceAll('{{s}}','15')}<span style="font-size:12.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase">${t.home}</span></div>
+  </div>
+  </div>
+  </div>`;
+}
+
 function render(){
   const s = state, t = STR[s.lang];
   let body = '';
@@ -1053,6 +1468,11 @@ function render(){
   else if(s.screen==='victory') body = screenVictory(t,s);
   else if(s.screen==='board') body = screenBoard(t,s);
   else if(s.screen==='settings') body = screenSettings(t,s);
+  else if(s.screen==='duelMenu') body = screenDuelMenu(t,s);
+  else if(s.screen==='duelWait') body = screenDuelWait(t,s);
+  else if(s.screen==='duelCountdown') body = screenDuelCountdown(t,s);
+  else if(s.screen==='duelGame') body = screenDuelGame(t,s);
+  else if(s.screen==='duelResult') body = screenDuelResult(t,s);
   else if(s.screen==='profile') body = screenProfile(t,s);
   body += overlaySheet(t,s) + overlayToast(s) + overlayNav(t,s);
   document.getElementById('phone').innerHTML = body;
