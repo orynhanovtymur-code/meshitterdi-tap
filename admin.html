@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="kk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Мешіттерді тап — Admin</title>
+<style>
+:root{
+  --cream:#F7F4EC;--paper:#FFFFFF;
+  --g9:#08251C;--g8:#0E3B2E;--g7:#14523E;--g6:#1B6B50;--g5:#2E8365;--g4:#5AA184;--g3:#9AC7B3;--g2:#DCEAE3;--g1:#EFF6F2;
+  --gold:#C9A227;--gold2:#E7C765;--gold1:#FBF3DC;
+  --ink:#12201B;--mut:#657771;--line:rgba(8,37,28,.12);--danger:#B23B3B;--danger-bg:#FDECEC;
+  --fh:'Oswald','Barlow Condensed',system-ui,sans-serif;
+  --fb:'Manrope','Barlow',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--cream);color:var(--ink);font-family:var(--fb);-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:var(--fh);font-weight:500;letter-spacing:.005em;margin:0;line-height:1.1}
+label{display:block;font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);margin:0 0 6px}
+input,textarea{width:100%;font-family:inherit;font-size:14px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--paper);color:var(--ink)}
+input:focus,textarea:focus{outline:2px solid var(--g4);outline-offset:1px}
+textarea{resize:vertical;min-height:64px}
+button{font-family:var(--fh);cursor:pointer;border:none}
+.btn{height:44px;padding:0 18px;border-radius:13px;font-size:14px;letter-spacing:.03em;text-transform:uppercase;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.btn-primary{background:linear-gradient(150deg,#1B6B50,#0E3B2E);color:#fff;box-shadow:0 10px 20px -10px rgba(14,59,46,.55)}
+.btn-primary:disabled{opacity:.55;cursor:default}
+.btn-ghost{background:var(--paper);color:var(--g8);border:1px solid var(--line)}
+.btn-danger{background:var(--danger-bg);color:var(--danger);border:1px solid rgba(178,59,59,.25)}
+.btn-sm{height:34px;padding:0 12px;font-size:12px;border-radius:10px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:20px}
+.wrap{max-width:920px;margin:0 auto;padding:28px 20px 80px}
+.field{margin-bottom:14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:560px){.grid2{grid-template-columns:1fr}}
+.top{display:flex;align-items:center;gap:12px;margin-bottom:24px}
+.badge{height:22px;padding:0 9px;border-radius:7px;background:var(--g1);border:1px solid var(--g2);color:var(--g7);font-family:var(--fb);font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;display:inline-flex;align-items:center}
+.err{color:var(--danger);background:var(--danger-bg);border:1px solid rgba(178,59,59,.25);border-radius:12px;padding:10px 14px;font-size:13px;margin-top:12px}
+.msg{color:var(--g7);background:var(--g1);border:1px solid var(--g2);border-radius:12px;padding:10px 14px;font-size:13px;margin-top:12px}
+.mosque-row{display:flex;align-items:center;gap:14px;padding:14px;border-bottom:1px solid var(--line)}
+.mosque-row:last-child{border-bottom:none}
+.thumb{width:56px;height:56px;border-radius:14px;background:var(--g2) center/cover no-repeat;flex:none;border:1px solid var(--line)}
+.spinner{width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.login-wrap{min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:20px}
+.login-card{width:100%;max-width:360px;padding:32px 28px}
+.file-drop{border:1.5px dashed var(--g3);border-radius:16px;padding:16px;text-align:center;cursor:pointer;background:var(--g1)}
+.file-drop img{max-width:100%;max-height:140px;border-radius:12px;display:block;margin:0 auto}
+</style>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap">
+</head>
+<body>
+<div id="app"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.114.0/dist/umd/supabase.js"></script>
+<script>
+const SUPABASE_URL = 'https://wtwavdkvcdupjkuukqda.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_bk9ypdwRpDvDySM86xLDJA_I9FG1HiK';
+const ADMIN_EMAIL = 'digital@muftyat.kz';
+const BUCKET = 'mosque-photos';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const app = document.getElementById('app');
+let session = null;
+let mosques = [];
+let editing = null;   // mosque row being edited, or {} for new
+let pendingFile = null;
+let loading = false;
+let errorMsg = '';
+let infoMsg = '';
+
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+async function init(){
+  const { data } = await sb.auth.getSession();
+  session = data.session;
+  sb.auth.onAuthStateChange((_event, s)=>{ session = s; render(); });
+  if(session) await loadMosques();
+  render();
+}
+
+async function loadMosques(){
+  loading = true; render();
+  const { data, error } = await sb.from('mosques').select('*').order('sort_order',{ascending:true}).order('created_at',{ascending:true});
+  loading = false;
+  if(error){ errorMsg = 'Тізімді жүктеу қатесі: '+error.message; render(); return; }
+  mosques = data || [];
+  render();
+}
+
+async function login(e){
+  e.preventDefault();
+  errorMsg=''; infoMsg='';
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  loading = true; render();
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  loading = false;
+  if(error){ errorMsg = 'Кіру қатесі: '+error.message; render(); return; }
+  session = data.session;
+  if(session.user.email !== ADMIN_EMAIL){
+    errorMsg = 'Бұл аккаунтта админ құқығы жоқ.';
+    await sb.auth.signOut();
+    session = null;
+    render();
+    return;
+  }
+  await loadMosques();
+}
+
+async function logout(){
+  await sb.auth.signOut();
+  session = null; mosques = []; editing = null;
+  render();
+}
+
+function startNew(){
+  editing = { name_kz:'', name_ru:'', city_kz:'', city_ru:'', fact_kz:'', fact_ru:'', image_url:'', sort_order:(mosques.length) };
+  pendingFile = null; errorMsg=''; infoMsg='';
+  render();
+}
+function startEdit(m){
+  editing = Object.assign({}, m);
+  pendingFile = null; errorMsg=''; infoMsg='';
+  render();
+}
+function startEditById(id){
+  const m = mosques.find(x=>x.id===id);
+  if(m) startEdit(m);
+}
+function cancelEdit(){ editing=null; pendingFile=null; render(); }
+
+function onFilePicked(input){
+  const file = input.files && input.files[0];
+  if(!file) return;
+  if(!file.type.startsWith('image/')){ errorMsg='Тек сурет файлын таңдаңыз.'; render(); return; }
+  if(file.size > 8*1024*1024){ errorMsg='Файл тым үлкен (8 МБ дейін).'; render(); return; }
+  pendingFile = file;
+  errorMsg='';
+  const reader = new FileReader();
+  reader.onload = ()=>{ editing._preview = reader.result; render(); };
+  reader.readAsDataURL(file);
+}
+
+async function saveMosque(e){
+  e.preventDefault();
+  errorMsg=''; infoMsg='';
+  const f = editing;
+  f.name_kz = document.getElementById('f_name_kz').value.trim();
+  f.name_ru = document.getElementById('f_name_ru').value.trim() || f.name_kz;
+  f.city_kz = document.getElementById('f_city_kz').value.trim();
+  f.city_ru = document.getElementById('f_city_ru').value.trim() || f.city_kz;
+  f.fact_kz = document.getElementById('f_fact_kz').value.trim();
+  f.fact_ru = document.getElementById('f_fact_ru').value.trim() || f.fact_kz;
+  f.sort_order = parseInt(document.getElementById('f_sort').value,10) || 0;
+
+  if(!f.name_kz || !f.city_kz || !f.fact_kz){
+    errorMsg = 'Атауын, өңірін және сипаттамасын (кемінде қазақша) толтырыңыз.';
+    render(); return;
+  }
+  if(!pendingFile && !f.image_url){
+    errorMsg = 'Мешіттің суретін жүктеңіз.';
+    render(); return;
+  }
+
+  loading = true; render();
+  try{
+    if(pendingFile){
+      const ext = (pendingFile.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'') || 'jpg';
+      const path = (crypto.randomUUID?crypto.randomUUID():String(Date.now()))+'.'+ext;
+      const { error: upErr } = await sb.storage.from(BUCKET).upload(path, pendingFile, { upsert:false, contentType: pendingFile.type });
+      if(upErr) throw upErr;
+      const { data: pub } = sb.storage.from(BUCKET).getPublicUrl(path);
+      f.image_url = pub.publicUrl;
+    }
+    const row = {
+      name_kz:f.name_kz, name_ru:f.name_ru, city_kz:f.city_kz, city_ru:f.city_ru,
+      fact_kz:f.fact_kz, fact_ru:f.fact_ru, image_url:f.image_url, sort_order:f.sort_order
+    };
+    if(f.id){
+      const { error } = await sb.from('mosques').update(row).eq('id', f.id);
+      if(error) throw error;
+      infoMsg = 'Сақталды.';
+    } else {
+      const { error } = await sb.from('mosques').insert(row);
+      if(error) throw error;
+      infoMsg = 'Қосылды.';
+    }
+    editing = null; pendingFile = null;
+    await loadMosques();
+  }catch(err){
+    errorMsg = 'Сақтау қатесі: '+(err.message||err);
+    loading = false; render();
+  }
+}
+
+async function deleteMosque(m){
+  if(!confirm('"'+m.name_kz+'" жоюды растайсыз ба?')) return;
+  loading = true; render();
+  const { error } = await sb.from('mosques').delete().eq('id', m.id);
+  loading = false;
+  if(error){ errorMsg = 'Жою қатесі: '+error.message; render(); return; }
+  infoMsg = 'Жойылды.';
+  await loadMosques();
+}
+function deleteMosqueById(id){
+  const m = mosques.find(x=>x.id===id);
+  if(m) deleteMosque(m);
+}
+
+function renderLogin(){
+  return `<div class="login-wrap"><form class="card login-card" onsubmit="login(event)">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:22px">
+      <div style="width:38px;height:38px;border-radius:13px;background:linear-gradient(150deg,#1B6B50,#0E3B2E);display:grid;place-items:center;color:#E7C765">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-8.2M20 21v-8.2M4.2 12.8C4.2 8.4 7.7 4.9 12 4.9s7.8 3.5 7.8 7.9M12 4.9V2.4M1.8 21h20.4M9 21v-3.7a3 3 0 0 1 6 0V21"/></svg>
+      </div>
+      <h1 style="font-size:19px;text-transform:uppercase">Admin</h1>
+    </div>
+    <div class="field"><label>Email</label><input id="loginEmail" type="email" required autocomplete="username"></div>
+    <div class="field"><label>Құпия сөз</label><input id="loginPassword" type="password" required autocomplete="current-password"></div>
+    <button class="btn btn-primary" style="width:100%" type="submit" ${loading?'disabled':''}>${loading?'<span class="spinner"></span>':'Кіру'}</button>
+    ${errorMsg?`<div class="err">${esc(errorMsg)}</div>`:''}
+  </form></div>`;
+}
+
+function renderForm(){
+  const f = editing;
+  const preview = f._preview || f.image_url;
+  return `<div class="card" style="padding:20px;margin-bottom:22px">
+  <h2 style="font-size:18px;text-transform:uppercase;margin-bottom:16px">${f.id?'Мешітті өңдеу':'Жаңа мешіт'}</h2>
+  <form onsubmit="saveMosque(event)">
+    <div class="field">
+      <label>Сурет</label>
+      <div class="file-drop" onclick="document.getElementById('f_file').click()">
+        ${preview?`<img src="${esc(preview)}" alt="">`:`<div style="color:var(--mut);font-size:13px;padding:20px 0">Сурет таңдау үшін басыңыз</div>`}
+      </div>
+      <input id="f_file" type="file" accept="image/*" style="display:none" onchange="onFilePicked(this)">
+    </div>
+    <div class="grid2">
+      <div class="field"><label>Атауы (қазақша) *</label><input id="f_name_kz" value="${esc(f.name_kz)}" required></div>
+      <div class="field"><label>Атауы (орысша)</label><input id="f_name_ru" value="${esc(f.name_ru)}" placeholder="бос болса қазақшасы алынады"></div>
+      <div class="field"><label>Өңірі (қазақша) *</label><input id="f_city_kz" value="${esc(f.city_kz)}" required></div>
+      <div class="field"><label>Өңірі (орысша)</label><input id="f_city_ru" value="${esc(f.city_ru)}" placeholder="бос болса қазақшасы алынады"></div>
+    </div>
+    <div class="field"><label>Сипаттама (қазақша) *</label><textarea id="f_fact_kz" required>${esc(f.fact_kz)}</textarea></div>
+    <div class="field"><label>Сипаттама (орысша)</label><textarea id="f_fact_ru" placeholder="бос болса қазақшасы алынады">${esc(f.fact_ru)}</textarea></div>
+    <div class="field" style="max-width:160px"><label>Реті</label><input id="f_sort" type="number" value="${esc(f.sort_order||0)}"></div>
+    <div style="display:flex;gap:10px;margin-top:6px">
+      <button class="btn btn-primary" type="submit" ${loading?'disabled':''}>${loading?'<span class="spinner"></span>':'Сақтау'}</button>
+      <button class="btn btn-ghost" type="button" onclick="cancelEdit()">Бас тарту</button>
+    </div>
+  </form>
+  </div>`;
+}
+
+function renderDashboard(){
+  const rows = mosques.map(m=>`
+    <div class="mosque-row">
+      <div class="thumb" style="background-image:url('${esc(m.image_url)}')"></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.name_kz)}</div>
+        <div style="font-size:12px;color:var(--mut);margin-top:2px">${esc(m.city_kz)}</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="startEditById('${m.id}')">Өңдеу</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteMosqueById('${m.id}')">Жою</button>
+    </div>`).join('');
+
+  return `<div class="wrap">
+  <div class="top">
+    <div style="width:38px;height:38px;border-radius:13px;background:linear-gradient(150deg,#1B6B50,#0E3B2E);display:grid;place-items:center;color:#E7C765;flex:none">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-8.2M20 21v-8.2M4.2 12.8C4.2 8.4 7.7 4.9 12 4.9s7.8 3.5 7.8 7.9M12 4.9V2.4M1.8 21h20.4M9 21v-3.7a3 3 0 0 1 6 0V21"/></svg>
+    </div>
+    <div style="flex:1;min-width:0">
+      <h1 style="font-size:20px;text-transform:uppercase">Мешіттер — Admin</h1>
+      <span class="badge">${esc(session.user.email)}</span>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="logout()">Шығу</button>
+  </div>
+
+  ${errorMsg?`<div class="err">${esc(errorMsg)}</div>`:''}
+  ${infoMsg?`<div class="msg">${esc(infoMsg)}</div>`:''}
+
+  ${editing ? renderForm() : `<button class="btn btn-primary" style="margin-bottom:20px" onclick="startNew()">+ Жаңа мешіт қосу</button>`}
+
+  <div class="card">
+    ${loading && !mosques.length ? `<div style="padding:24px;text-align:center;color:var(--mut)">Жүктелуде…</div>` :
+      mosques.length ? rows : `<div style="padding:24px;text-align:center;color:var(--mut)">Әзірге мешіт қосылмаған.</div>`}
+  </div>
+  </div>`;
+}
+
+function render(){
+  if(!session){ app.innerHTML = renderLogin(); return; }
+  app.innerHTML = renderDashboard();
+}
+
+init();
+</script>
+</body>
+</html>
