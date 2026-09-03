@@ -44,6 +44,9 @@ button{font-family:inherit;border:none;background:none;padding:0}
 .card.justmatched .card-ring{animation:ring .7s ease-out forwards}
 .timerPill{flex:1;height:46px;border-radius:15px;display:flex;align-items:center;justify-content:center;gap:7px;transition:background .3s,border-color .3s,color .3s;background:linear-gradient(150deg,#1B6B50,#0E3B2E);border:1px solid transparent;color:#fff}
 .timerPill.low{background:#FDECEC;border:1px solid rgba(190,60,60,.28);color:#A03232}
+.glabel{display:block;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin:0 0 6px}
+.ginput{width:100%;font-family:var(--fb);font-size:14px;padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:var(--paper);color:var(--ink)}
+.ginput:focus{outline:2px solid var(--g4);outline-offset:1px}
 @media (prefers-reduced-motion: reduce){*{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important}}
 </style>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -154,8 +157,9 @@ const CHIP_OFF = 'height:24px;padding:0 11px;border-radius:8px;background:transp
 
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-let state = { screen:'splash', lang:'kz', coins:1240, found:[], name:'Ойыншы',
+let state = { screen:'splash', lang:'kz', coins:1240, found:[], name:'Ойыншы', city:'',
   playerId:null, bestScore:0, leaderboard:null,
+  authMode:'register', authError:'', authInfo:'', authLoading:false,
   levelId:'easy', cards:[], flipped:[], matched:[], justMatched:[],
   moves:0, left:90, elapsed:0, sheet:null, score:0, earned:0, stars:3, toast:null, locked:false };
 
@@ -164,6 +168,7 @@ try{
   const c = localStorage.getItem('mmt:coins'); if(c) state.coins = parseInt(c,10)||state.coins;
   const f = localStorage.getItem('mmt:found'); if(f) state.found = JSON.parse(f)||[];
   const n = localStorage.getItem('mmt:name'); if(n) state.name = n;
+  const ct = localStorage.getItem('mmt:city'); if(ct) state.city = ct;
 }catch(e){}
 
 function persist(o){ try{
@@ -171,6 +176,7 @@ function persist(o){ try{
   if(o.coins!=null) localStorage.setItem('mmt:coins',String(o.coins));
   if(o.found!=null) localStorage.setItem('mmt:found',JSON.stringify(o.found));
   if(o.name!=null) localStorage.setItem('mmt:name',o.name);
+  if(o.city!=null) localStorage.setItem('mmt:city',o.city);
 }catch(e){}
   persistCloud();
 }
@@ -183,6 +189,7 @@ function persistCloud(){
   cloudSaveTimer = setTimeout(()=>{
     sb.from('players').update({
       name: state.name,
+      city: state.city,
       lang: state.lang,
       coins: state.coins,
       found: state.found,
@@ -193,46 +200,130 @@ function persistCloud(){
   }, 600);
 }
 
-async function initCloud(){
-  if(!sb) return;
-  try{
-    let { data:{ session } } = await sb.auth.getSession();
-    if(!session){
-      const { data, error } = await sb.auth.signInAnonymously();
-      if(error) throw error;
-      session = data.session;
-    }
-    const uid = session.user.id;
-    state.playerId = uid;
-    let { data: row } = await sb.from('players').select('*').eq('id', uid).maybeSingle();
-    if(!row){
-      const { data: created, error: insertErr } = await sb.from('players').insert({
-        id: uid, name: state.name, lang: state.lang, coins: state.coins,
-        found: state.found, best_score: state.bestScore||0
-      }).select().maybeSingle();
-      if(insertErr) throw insertErr;
-      row = created;
-    }
-    if(row){
-      state.name = row.name || state.name;
-      state.lang = row.lang || state.lang;
-      state.coins = row.coins!=null ? row.coins : state.coins;
-      state.found = row.found || state.found;
-      state.bestScore = row.best_score || 0;
-      try{
-        localStorage.setItem('mmt:lang', state.lang);
-        localStorage.setItem('mmt:coins', String(state.coins));
-        localStorage.setItem('mmt:found', JSON.stringify(state.found));
-        localStorage.setItem('mmt:name', state.name);
-      }catch(e){}
-    }
-    cloudReady = true;
-    if(state.screen!=='splash' && state.screen!=='game') render();
-  }catch(e){
-    console.warn('Supabase unavailable, playing offline:', e.message||e);
+async function hydratePlayer(uid, defaults){
+  state.playerId = uid;
+  let { data: row } = await sb.from('players').select('*').eq('id', uid).maybeSingle();
+  if(!row){
+    const insertRow = {
+      id: uid,
+      name: (defaults && defaults.name) || state.name,
+      city: (defaults && defaults.city) || state.city || null,
+      lang: state.lang, coins: state.coins, found: state.found, best_score: state.bestScore||0
+    };
+    const { data: created, error } = await sb.from('players').insert(insertRow).select().maybeSingle();
+    if(error) throw error;
+    row = created;
+  }
+  if(row){
+    state.name = row.name || state.name;
+    state.city = row.city || state.city || '';
+    state.lang = row.lang || state.lang;
+    state.coins = row.coins!=null ? row.coins : state.coins;
+    state.found = row.found || state.found;
+    state.bestScore = row.best_score || 0;
+    try{
+      localStorage.setItem('mmt:lang', state.lang);
+      localStorage.setItem('mmt:coins', String(state.coins));
+      localStorage.setItem('mmt:found', JSON.stringify(state.found));
+      localStorage.setItem('mmt:name', state.name);
+      localStorage.setItem('mmt:city', state.city);
+    }catch(e){}
   }
 }
-initCloud();
+
+async function bootAuth(){
+  if(!sb) return;
+  try{
+    const { data:{ session } } = await sb.auth.getSession();
+    if(session){
+      await hydratePlayer(session.user.id);
+      cloudReady = true;
+      if(state.screen!=='splash' && state.screen!=='game') render();
+    }
+  }catch(e){
+    console.warn('Supabase session check failed:', e.message||e);
+  }
+}
+const authReady = bootAuth();
+
+function setAuthMode(m){ state.authMode = m; state.authError=''; state.authInfo=''; render(); }
+
+async function submitRegister(e){
+  e.preventDefault();
+  const name = document.getElementById('reg_name').value.trim();
+  const city = document.getElementById('reg_city').value.trim();
+  const email = document.getElementById('reg_email').value.trim();
+  const password = document.getElementById('reg_password').value;
+  state.authError=''; state.authInfo='';
+  if(!name || !city || !email || !password){
+    state.authError = state.lang==='kz' ? 'Барлық өрісті толтырыңыз.' : 'Заполните все поля.';
+    render(); return;
+  }
+  if(password.length < 6){
+    state.authError = state.lang==='kz' ? 'Құпия сөз кемінде 6 таңба болу керек.' : 'Пароль должен быть не короче 6 символов.';
+    render(); return;
+  }
+  state.authLoading = true; render();
+  try{
+    const { data, error } = await sb.auth.signUp({ email, password, options:{ data:{ name, city } } });
+    if(error) throw error;
+    if(data.session){
+      await hydratePlayer(data.session.user.id, {name, city});
+      cloudReady = true;
+      state.authLoading = false;
+      setState({screen:'home'});
+    } else {
+      state.authLoading = false;
+      state.authMode = 'login';
+      state.authInfo = state.lang==='kz'
+        ? 'Растау хаты email-ге жіберілді. Растағаннан кейін осы жерден кіріңіз.'
+        : 'Письмо для подтверждения отправлено на email. После подтверждения войдите здесь.';
+      render();
+    }
+  }catch(err){
+    state.authLoading = false;
+    state.authError = err.message || String(err);
+    render();
+  }
+}
+
+async function submitLogin(e){
+  e.preventDefault();
+  const email = document.getElementById('log_email').value.trim();
+  const password = document.getElementById('log_password').value;
+  state.authError=''; state.authInfo='';
+  if(!email || !password){
+    state.authError = state.lang==='kz' ? 'Email және құпия сөзді енгізіңіз.' : 'Введите email и пароль.';
+    render(); return;
+  }
+  state.authLoading = true; render();
+  try{
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    if(error) throw error;
+    await hydratePlayer(data.session.user.id);
+    cloudReady = true;
+    state.authLoading = false;
+    setState({screen:'home'});
+  }catch(err){
+    state.authLoading = false;
+    state.authError = err.message || String(err);
+    render();
+  }
+}
+
+async function logout(){
+  if(sb) await sb.auth.signOut();
+  cloudReady = false;
+  state.playerId = null; state.coins = 1240; state.found = []; state.name = 'Ойыншы'; state.city = '';
+  state.bestScore = 0; state.leaderboard = null; state.authMode='login'; state.authError=''; state.authInfo='';
+  try{
+    localStorage.removeItem('mmt:coins');
+    localStorage.removeItem('mmt:found');
+    localStorage.removeItem('mmt:name');
+    localStorage.removeItem('mmt:city');
+  }catch(e){}
+  setState({screen:'auth'});
+}
 
 async function fetchLeaderboard(){
   if(!sb){ state.leaderboard = []; if(state.screen==='board') render(); return; }
@@ -775,7 +866,9 @@ function screenProfile(t,s){
   <h3 onclick="editName()" style="font-size:27px;color:#fff;text-transform:uppercase;cursor:pointer">${esc(s.name)}</h3>
   <div style="display:flex;align-items:center;gap:7px;margin-top:6px">
   <span style="height:21px;padding:0 8px;border-radius:6px;background:rgba(231,199,101,.16);border:1px solid rgba(231,199,101,.3);color:#E7C765;font-size:9.5px;font-weight:800;letter-spacing:.12em;display:flex;align-items:center;white-space:nowrap;flex:none">${esc(t.levelTag)} 7</span>
-  <span style="font-size:11.5px;font-weight:700;color:rgba(255,255,255,.55)">#3 · ${esc(t.globalTop)}</span></div></div></div>
+  <span style="font-size:11.5px;font-weight:700;color:rgba(255,255,255,.55)">#3 · ${esc(t.globalTop)}</span></div>
+  ${s.city?`<div style="margin-top:6px;display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:rgba(255,255,255,.5)">${svg.pin} ${esc(s.city)}</div>`:''}
+  </div></div>
   <div style="position:relative;padding:0 22px 20px">
   <div style="height:5px;border-radius:4px;background:rgba(255,255,255,.14);overflow:hidden"><div style="height:100%;width:62%;border-radius:4px;background:linear-gradient(90deg,#C9A227,#E7C765)"></div></div>
   <div style="display:flex;justify-content:space-between;margin-top:7px;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.42)">
@@ -807,6 +900,9 @@ function screenProfile(t,s){
   ${svg.globe}<span style="font-size:13.5px;font-weight:700">${esc(t.language)}</span>
   <span style="margin-left:auto;display:flex;gap:3px;padding:3px;border-radius:11px;background:var(--g1);border:1px solid var(--g2)">
   <span style="${s.lang==='kz'?CHIP_ON:CHIP_OFF}">ҚАЗ</span><span style="${s.lang==='ru'?CHIP_ON:CHIP_OFF}">РУС</span></span></div>
+  ${s.playerId?`<div onclick="logout()" data-hover style="margin:10px 18px 0;height:52px;border-radius:18px;background:var(--danger-bg,#FDECEC);border:1px solid rgba(190,60,60,.25);display:flex;align-items:center;justify-content:center;gap:9px;cursor:pointer;color:#A03232">
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3.5H6a1.5 1.5 0 0 0-1.5 1.5v14A1.5 1.5 0 0 0 6 20.5h9M10 12h11m0 0-3.5-3.5M21 12l-3.5 3.5"/></svg>
+  <span style="font-family:var(--fh);font-size:15px;text-transform:uppercase;letter-spacing:.04em">${s.lang==='kz'?'Шығу':'Выйти'}</span></div>`:''}
   </div>`;
 }
 
@@ -832,10 +928,51 @@ function overlayNav(t,s){
   </div></div>`;
 }
 
+function renderRegisterForm(s){
+  return `<form onsubmit="submitRegister(event)">
+  <div style="margin-bottom:12px"><label class="glabel">${s.lang==='kz'?'Аты-жөні':'Имя и фамилия'}</label><input id="reg_name" class="ginput" required></div>
+  <div style="margin-bottom:12px"><label class="glabel">${s.lang==='kz'?'Өңірі':'Регион'}</label><input id="reg_city" class="ginput" required></div>
+  <div style="margin-bottom:12px"><label class="glabel">Email</label><input id="reg_email" type="email" class="ginput" required></div>
+  <div style="margin-bottom:18px"><label class="glabel">${s.lang==='kz'?'Құпия сөз':'Пароль'}</label><input id="reg_password" type="password" class="ginput" required minlength="6"></div>
+  <button type="submit" data-hover style="width:100%;height:52px;border-radius:18px;background:linear-gradient(150deg,#E7C765,#C9A227);font-family:var(--fh);font-size:17px;color:#3A2D06;text-transform:uppercase;letter-spacing:.03em;box-shadow:0 14px 26px -12px rgba(201,162,39,.65)" ${s.authLoading?'disabled':''}>${s.authLoading?'…':(s.lang==='kz'?'Тіркелу':'Зарегистрироваться')}</button>
+  </form>`;
+}
+function renderLoginForm(s){
+  return `<form onsubmit="submitLogin(event)">
+  <div style="margin-bottom:12px"><label class="glabel">Email</label><input id="log_email" type="email" class="ginput" required></div>
+  <div style="margin-bottom:18px"><label class="glabel">${s.lang==='kz'?'Құпия сөз':'Пароль'}</label><input id="log_password" type="password" class="ginput" required></div>
+  <button type="submit" data-hover style="width:100%;height:52px;border-radius:18px;background:linear-gradient(150deg,#1B6B50,#0E3B2E);font-family:var(--fh);font-size:17px;color:#fff;text-transform:uppercase;letter-spacing:.03em;box-shadow:0 14px 26px -12px rgba(14,59,46,.55)" ${s.authLoading?'disabled':''}>${s.authLoading?'…':(s.lang==='kz'?'Кіру':'Войти')}</button>
+  </form>`;
+}
+
+function screenAuth(t,s){
+  const mode = s.authMode || 'register';
+  return `<div class="sc" style="position:absolute;inset:0;overflow-y:auto;background:var(--cream);animation:fade .3s ease">
+  <div style="position:relative;padding:44px 24px 28px;text-align:center;background:linear-gradient(168deg,#14523E 0%,#0E3B2E 46%,#08251C 100%);overflow:hidden">
+  <div style="position:absolute;inset:0;opacity:.4;background:repeating-conic-gradient(from 22.5deg at 50% 20%,rgba(255,255,255,.055) 0deg 11deg,transparent 11deg 22.5deg)"></div>
+  <div style="position:relative;width:60px;height:60px;margin:0 auto;border-radius:20px;background:linear-gradient(150deg,rgba(255,255,255,.22),rgba(255,255,255,.04));border:1px solid rgba(231,199,101,.42);display:grid;place-items:center;color:#E7C765">
+  <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-8.2M20 21v-8.2M4.2 12.8C4.2 8.4 7.7 4.9 12 4.9s7.8 3.5 7.8 7.9M12 4.9V2.4M1.8 21h20.4M9 21v-3.7a3 3 0 0 1 6 0V21"/></svg>
+  </div>
+  <h1 style="position:relative;margin-top:16px;font-size:24px;color:#fff;text-transform:uppercase">${esc(t.appName)}</h1>
+  <p style="position:relative;margin-top:6px;color:rgba(255,255,255,.6);font-size:12.5px">${mode==='register' ? (s.lang==='kz'?'Тіркеліп, ойынды баста':'Зарегистрируйся и начни игру') : (s.lang==='kz'?'Аккаунтыңа кір':'Войди в аккаунт')}</p>
+  </div>
+  <div style="padding:22px 22px 40px;max-width:360px;margin:0 auto">
+  <div style="display:flex;gap:3px;padding:3px;border-radius:13px;background:var(--g1);border:1px solid var(--g2);margin-bottom:20px">
+  <button type="button" onclick="setAuthMode('register')" style="flex:1;height:38px;border-radius:10px;font-family:var(--fb);font-weight:700;font-size:12.5px;letter-spacing:.03em;${mode==='register'?'background:#0E3B2E;color:#fff':'background:transparent;color:#657771'}">${s.lang==='kz'?'Тіркелу':'Регистрация'}</button>
+  <button type="button" onclick="setAuthMode('login')" style="flex:1;height:38px;border-radius:10px;font-family:var(--fb);font-weight:700;font-size:12.5px;letter-spacing:.03em;${mode==='login'?'background:#0E3B2E;color:#fff':'background:transparent;color:#657771'}">${s.lang==='kz'?'Кіру':'Вход'}</button>
+  </div>
+  ${mode==='register' ? renderRegisterForm(s) : renderLoginForm(s)}
+  ${s.authError?`<div style="margin-top:14px;padding:12px 14px;border-radius:14px;background:#FDECEC;border:1px solid rgba(190,60,60,.28);color:#A03232;font-size:12.5px;line-height:1.5">${esc(s.authError)}</div>`:''}
+  ${s.authInfo?`<div style="margin-top:14px;padding:12px 14px;border-radius:14px;background:var(--g1);border:1px solid var(--g2);color:var(--g7);font-size:12.5px;line-height:1.5">${esc(s.authInfo)}</div>`:''}
+  </div>
+  </div>`;
+}
+
 function render(){
   const s = state, t = STR[s.lang];
   let body = '';
   if(s.screen==='splash') body = screenSplash(t);
+  else if(s.screen==='auth') body = screenAuth(t,s);
   else if(s.screen==='home') body = screenHome(t,s);
   else if(s.screen==='levels') body = screenLevels(t,s);
   else if(s.screen==='game') body = screenGame(t,s);
@@ -860,8 +997,10 @@ let tickTimer = setInterval(()=>{
 
 if(state.screen==='splash'){
   setTimeout(async ()=>{
-    await mosquesReady;
-    if(state.screen==='splash') setState({screen:'home'});
+    await Promise.all([mosquesReady, authReady]);
+    if(state.screen==='splash'){
+      setState({screen: (sb && state.playerId) ? 'home' : 'auth'});
+    }
   },2300);
 }
 
