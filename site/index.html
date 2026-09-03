@@ -165,7 +165,10 @@ let state = { screen:'splash', lang:'kz', coins:1240, found:[], name:'Ойынш
   settingsError:'', settingsInfo:'', settingsLoading:false, prevScreen:'home',
   duelRoom:null, duelRole:null, duelChannel:null, duelError:'', duelLoading:false,
   duelCountdownN:3, duelDeckIds:[], duelFlipped:[], duelMatches:[], duelLocked:false,
-  duelOpponentId:null, duelOpponentName:'', duelResult:null,
+  duelOpponentId:null, duelOpponentName:'', duelResult:null, duelDeclinedMsg:'',
+  friends:[], friendsLoading:false, globalChannel:null,
+  pendingInviteToken:null, incomingFriendInvite:null, incomingDuelInvite:null,
+  inviteLoading:false, inviteInfo:'',
   levelId:'easy', cards:[], flipped:[], matched:[], justMatched:[],
   moves:0, left:90, elapsed:0, sheet:null, score:0, earned:0, stars:3, toast:null, locked:false };
 
@@ -175,6 +178,12 @@ try{
   const f = localStorage.getItem('mmt:found'); if(f) state.found = JSON.parse(f)||[];
   const n = localStorage.getItem('mmt:name'); if(n) state.name = n;
   const ct = localStorage.getItem('mmt:city'); if(ct) state.city = ct;
+}catch(e){}
+
+try{
+  const params = new URLSearchParams(location.search);
+  const inv = params.get('invite');
+  if(inv) state.pendingInviteToken = inv;
 }catch(e){}
 
 function persist(o){ try{
@@ -245,6 +254,8 @@ async function bootAuth(){
       state.email = session.user.email || '';
       await hydratePlayer(session.user.id);
       cloudReady = true;
+      subscribeGlobalInvites();
+      await processPendingInviteIfAny();
       if(state.screen!=='splash' && state.screen!=='game') render();
     }
   }catch(e){
@@ -278,8 +289,10 @@ async function submitRegister(e){
       state.email = data.session.user.email || email;
       await hydratePlayer(data.session.user.id, {name, city});
       cloudReady = true;
+      subscribeGlobalInvites();
+      await processPendingInviteIfAny();
       state.authLoading = false;
-      setState({screen:'home'});
+      setState({screen: state.incomingFriendInvite ? 'friendInvite' : 'home'});
     } else {
       state.authLoading = false;
       state.authMode = 'login';
@@ -311,8 +324,10 @@ async function submitLogin(e){
     state.email = data.session.user.email || email;
     await hydratePlayer(data.session.user.id);
     cloudReady = true;
+    subscribeGlobalInvites();
+    await processPendingInviteIfAny();
     state.authLoading = false;
-    setState({screen:'home'});
+    setState({screen: state.incomingFriendInvite ? 'friendInvite' : 'home'});
   }catch(err){
     state.authLoading = false;
     state.authError = err.message || String(err);
@@ -323,8 +338,12 @@ async function submitLogin(e){
 async function logout(){
   if(sb) await sb.auth.signOut();
   cloudReady = false;
+  if(sb && state.globalChannel){ sb.removeChannel(state.globalChannel); }
+  state.globalChannel = null;
+  teardownDuelChannel();
   state.playerId = null; state.coins = 1240; state.found = []; state.name = 'Ойыншы'; state.city = ''; state.email='';
   state.bestScore = 0; state.leaderboard = null; state.authMode='login'; state.authError=''; state.authInfo='';
+  state.friends = []; state.incomingFriendInvite=null; state.incomingDuelInvite=null; state.pendingInviteToken=null;
   try{
     localStorage.removeItem('mmt:coins');
     localStorage.removeItem('mmt:found');
@@ -379,10 +398,135 @@ function subscribeDuelRoom(roomId){
     .subscribe();
 }
 
+function subscribeGlobalInvites(){
+  if(!sb || !state.playerId) return;
+  if(state.globalChannel){ sb.removeChannel(state.globalChannel); state.globalChannel=null; }
+  state.globalChannel = sb.channel('invites-'+state.playerId)
+    .on('postgres_changes', {event:'*', schema:'public', table:'duel_rooms', filter:'guest_id=eq.'+state.playerId}, payload=>{
+      const row = payload.new;
+      if(!row || row.status!=='invited') return;
+      if(state.screen==='duelGame' || state.screen==='duelCountdown') return;
+      if(state.incomingDuelInvite && state.incomingDuelInvite.roomId===row.id) return;
+      loadInviteHostName(row.host_id).then(hostName=>{
+        state.incomingDuelInvite = { roomId: row.id, hostId: row.host_id, hostName };
+        render();
+      });
+    })
+    .subscribe();
+}
+
+async function loadInviteHostName(hostId){
+  try{
+    const { data } = await sb.from('players').select('name').eq('id', hostId).maybeSingle();
+    return (data && data.name) || (state.lang==='kz' ? 'Досың' : 'Друг');
+  }catch(e){
+    return state.lang==='kz' ? 'Досың' : 'Друг';
+  }
+}
+
+async function processPendingInviteIfAny(){
+  if(!sb || !state.pendingInviteToken) return;
+  try{
+    const { data: row, error } = await sb.from('friend_requests').select('*').eq('invite_token', state.pendingInviteToken).maybeSingle();
+    if(error) throw error;
+    if(!row || row.status!=='pending' || row.to_id){ state.pendingInviteToken=null; return; }
+    if(row.from_id === state.playerId){ state.pendingInviteToken=null; return; }
+    const { data: fromPlayer } = await sb.from('players').select('name').eq('id', row.from_id).maybeSingle();
+    state.incomingFriendInvite = {
+      id: row.id, fromId: row.from_id,
+      fromName: (fromPlayer && fromPlayer.name) || (state.lang==='kz' ? 'Досың' : 'Друг')
+    };
+  }catch(e){
+    console.warn('Invite lookup failed:', e.message||e);
+  }
+}
+
+async function inviteFriend(){
+  if(!sb || !state.playerId || state.inviteLoading) return;
+  state.inviteLoading = true; state.inviteInfo=''; render();
+  try{
+    const token = crypto.randomUUID ? crypto.randomUUID() : (String(Date.now())+Math.random().toString(36).slice(2));
+    const { error } = await sb.from('friend_requests').insert({ from_id: state.playerId, invite_token: token });
+    if(error) throw error;
+    const link = location.origin + location.pathname + '?invite=' + token;
+    const text = (state.lang==='kz' ? 'Маған "Мешіттерді тап" ойынында дос бол: ' : 'Стань моим другом в игре «Найди мечети»: ') + link;
+    const finish = (msg)=>{ state.inviteLoading=false; state.inviteInfo=msg; render(); };
+    try{
+      if(navigator.share){ await navigator.share({title:'Мешіттерді тап', text, url:link}); finish(''); return; }
+    }catch(e){}
+    try{
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        await navigator.clipboard.writeText(link);
+        finish(state.lang==='kz' ? 'Сілтеме көшірілді!' : 'Ссылка скопирована!');
+        return;
+      }
+    }catch(e){}
+    finish('');
+  }catch(err){
+    state.inviteLoading = false;
+    toast(err.message || String(err));
+    render();
+  }
+}
+
+async function acceptFriendInvite(){
+  const inv = state.incomingFriendInvite;
+  if(!inv || state.inviteLoading) return;
+  state.inviteLoading = true; render();
+  try{
+    const { error } = await sb.from('friend_requests')
+      .update({ to_id: state.playerId, status:'accepted', responded_at: new Date().toISOString() })
+      .eq('id', inv.id).eq('status','pending').is('to_id', null);
+    if(error) throw error;
+    state.incomingFriendInvite = null;
+    state.pendingInviteToken = null;
+    try{ history.replaceState(null, '', location.pathname); }catch(e){}
+    state.inviteLoading = false;
+    toast(state.lang==='kz' ? 'Дос болдыңдар!' : 'Теперь вы друзья!');
+    setState({screen:'home'});
+  }catch(err){
+    state.inviteLoading = false;
+    toast(err.message || String(err));
+    render();
+  }
+}
+
+function declineFriendInvite(){
+  state.incomingFriendInvite = null;
+  state.pendingInviteToken = null;
+  try{ history.replaceState(null, '', location.pathname); }catch(e){}
+  setState({screen:'home'});
+}
+
+async function fetchFriends(){
+  if(!sb || !state.playerId) return;
+  state.friendsLoading = true; render();
+  try{
+    const { data, error } = await sb.from('friend_requests')
+      .select('from_id,to_id')
+      .eq('status','accepted')
+      .or('from_id.eq.'+state.playerId+',to_id.eq.'+state.playerId);
+    if(error) throw error;
+    const otherIds = (data||[]).map(r=> r.from_id===state.playerId ? r.to_id : r.from_id).filter(Boolean);
+    let friends = [];
+    if(otherIds.length){
+      const { data: players } = await sb.from('players').select('id,name,city').in('id', otherIds);
+      friends = (players||[]).map(p=>({id:p.id, name:p.name||'Ойыншы', city:p.city||''}));
+    }
+    state.friends = friends;
+  }catch(e){
+    console.warn('Friends fetch failed:', e.message||e);
+    state.friends = state.friends || [];
+  }
+  state.friendsLoading = false;
+  render();
+}
+
 function goDuelMenu(){
-  state.duelError=''; state.duelRoom=null; state.duelRole=null;
+  state.duelError=''; state.duelRoom=null; state.duelRole=null; state.duelDeclinedMsg='';
   teardownDuelChannel();
   setState({screen:'duelMenu'});
+  fetchFriends();
 }
 
 function leaveDuel(){
@@ -391,21 +535,24 @@ function leaveDuel(){
   setState({screen:'home'});
 }
 
-async function createDuelRoom(){
+function inviteFriendToDuelById(id){
+  const f = (state.friends||[]).find(x=>x.id===id);
+  if(f) inviteFriendToDuel(f.id, f.name);
+}
+
+async function inviteFriendToDuel(friendId, friendName){
   if(!sb || !state.playerId || state.duelLoading) return;
   state.duelError=''; state.duelLoading=true; render();
   try{
-    let room = null, lastErr = null;
-    for(let attempt=0; attempt<5 && !room; attempt++){
-      const code = genRoomCode();
-      const { data, error } = await sb.from('duel_rooms').insert({ host_id: state.playerId, code, pairs: 8 }).select().maybeSingle();
-      if(!error){ room = data; break; }
-      lastErr = error;
-      if(error.code !== '23505') break;
-    }
-    if(!room) throw (lastErr || new Error('Бөлме жасалмады.'));
+    const code = genRoomCode();
+    const { data: room, error } = await sb.from('duel_rooms')
+      .insert({ host_id: state.playerId, guest_id: friendId, code, status:'invited', pairs:8 })
+      .select().maybeSingle();
+    if(error) throw error;
     state.duelRoom = room;
     state.duelRole = 'host';
+    state.duelOpponentId = friendId;
+    state.duelOpponentName = friendName;
     subscribeDuelRoom(room.id);
     state.duelLoading = false;
     setState({screen:'duelWait'});
@@ -416,60 +563,54 @@ async function createDuelRoom(){
   }
 }
 
-async function submitJoinDuel(e){
-  e.preventDefault();
-  if(state.duelLoading) return;
-  const code = document.getElementById('duel_code').value.trim().toUpperCase();
-  state.duelError='';
-  if(!code){
-    state.duelError = state.lang==='kz' ? 'Кодты енгізіңіз.' : 'Введите код.';
-    render(); return;
-  }
-  state.duelLoading = true; render();
+async function acceptDuelInvite(){
+  const inv = state.incomingDuelInvite;
+  if(!inv) return;
+  state.incomingDuelInvite = null; render();
   try{
-    const { data: room, error } = await sb.from('duel_rooms').select('*').eq('code', code).maybeSingle();
-    if(error) throw error;
-    if(!room) throw new Error(state.lang==='kz' ? 'Бөлме табылмады.' : 'Комната не найдена.');
-    if(room.host_id === state.playerId) throw new Error(state.lang==='kz' ? 'Өз бөлмеңізге қосыла алмайсыз.' : 'Нельзя присоединиться к своей комнате.');
-    if(room.status !== 'waiting' || room.guest_id) throw new Error(state.lang==='kz' ? 'Бұл бөлме бос емес.' : 'Эта комната уже занята.');
-    const { data: updated, error: updErr } = await sb.from('duel_rooms')
-      .update({ guest_id: state.playerId, status:'countdown' })
-      .eq('id', room.id).eq('status','waiting').is('guest_id', null)
+    const { data: updated, error } = await sb.from('duel_rooms')
+      .update({ status:'countdown' })
+      .eq('id', inv.roomId).eq('status','invited')
       .select().maybeSingle();
-    if(updErr) throw updErr;
-    if(!updated) throw new Error(state.lang==='kz' ? 'Бөлмеге басқа біреу қосылып үлгерді.' : 'В комнату уже кто-то вошёл.');
+    if(error) throw error;
+    if(!updated){
+      toast(state.lang==='kz' ? 'Шақыру жарамсыз болды.' : 'Приглашение уже недействительно.');
+      return;
+    }
     state.duelRoom = updated;
     state.duelRole = 'guest';
-    state.duelOpponentId = updated.host_id;
+    state.duelOpponentId = inv.hostId;
+    state.duelOpponentName = inv.hostName;
     subscribeDuelRoom(updated.id);
-    state.duelLoading = false;
-    await loadDuelOpponentName();
     enterDuelCountdown();
-  }catch(err){
-    state.duelLoading = false;
-    state.duelError = err.message || String(err);
-    render();
+  }catch(e){
+    toast(e.message || String(e));
   }
 }
 
-async function loadDuelOpponentName(){
-  if(!state.duelOpponentId) return;
+async function declineDuelInvite(){
+  const inv = state.incomingDuelInvite;
+  if(!inv) return;
+  state.incomingDuelInvite = null; render();
   try{
-    const { data } = await sb.from('players').select('name').eq('id', state.duelOpponentId).maybeSingle();
-    state.duelOpponentName = (data && data.name) || (state.lang==='kz' ? 'Досың' : 'Друг');
-  }catch(e){
-    state.duelOpponentName = state.lang==='kz' ? 'Досың' : 'Друг';
-  }
+    await sb.from('duel_rooms').update({status:'declined'}).eq('id', inv.roomId).eq('status','invited');
+  }catch(e){ console.warn('Decline failed:', e.message||e); }
 }
 
 function onDuelRoomUpdate(row){
   const prevStatus = state.duelRoom ? state.duelRoom.status : null;
   state.duelRoom = row;
-  if(row.status==='countdown' && prevStatus==='waiting'){
-    state.duelOpponentId = state.duelRole==='host' ? row.guest_id : row.host_id;
-    loadDuelOpponentName().then(()=>{
-      if(state.screen==='duelWait') enterDuelCountdown();
-    });
+  if(row.status==='declined'){
+    teardownDuelChannel();
+    state.duelDeclinedMsg = (state.duelOpponentName || (state.lang==='kz'?'Досың':'Друг')) +
+      (state.lang==='kz' ? ' шақыруды қабылдамады.' : ' отклонил(а) приглашение.');
+    setState({screen:'duelMenu'});
+    fetchFriends();
+    return;
+  }
+  if(row.status==='countdown' && (prevStatus==='invited' || prevStatus==='waiting')){
+    if(!state.duelOpponentId) state.duelOpponentId = state.duelRole==='host' ? row.guest_id : row.host_id;
+    if(state.screen==='duelWait') enterDuelCountdown();
     return;
   }
   if(row.status==='playing' && state.screen==='duelCountdown'){
@@ -615,19 +756,6 @@ function computeDuelResult(row){
   }
   if(state.screen!=='duelResult') setState({screen:'duelResult'});
   else render();
-}
-
-function copyDuelCode(){
-  const room = state.duelRoom;
-  if(!room) return;
-  const text = room.code;
-  const done = ()=>toast(state.lang==='kz' ? 'Код көшірілді' : 'Код скопирован');
-  try{
-    if(navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(text).then(done, done); return;
-    }
-  }catch(e){}
-  done();
 }
 
 function goSettings(){
@@ -1221,9 +1349,9 @@ function screenProfile(t,s){
   <div style="margin:14px 18px 0;padding:17px;border-radius:24px;background:var(--paper);border:1px solid var(--line);display:flex;align-items:center;gap:14px">
   <div style="width:44px;height:44px;border-radius:16px;background:var(--g1);border:1px solid var(--g2);display:grid;place-items:center;color:var(--g7);flex:none">${svg.invite}</div>
   <div style="flex:1;min-width:0"><div style="font-family:var(--fh);font-size:19px;line-height:1.1">${esc(t.invite)}</div>
-  <div style="font-size:11.5px;color:var(--mut);margin-top:3px;line-height:1.45">${esc(t.inviteDesc)}</div></div>
-  <div data-hover style="height:38px;padding:0 15px;border-radius:13px;background:linear-gradient(150deg,#1B6B50,#0E3B2E);display:grid;place-items:center;cursor:pointer;flex:none;box-shadow:0 10px 20px -10px rgba(14,59,46,.6)">
-  <span style="font-family:var(--fh);font-size:14px;color:#fff;text-transform:uppercase;letter-spacing:.05em">${esc(t.inviteBtn)}</span></div></div>
+  <div style="font-size:11.5px;color:var(--mut);margin-top:3px;line-height:1.45">${s.inviteInfo ? esc(s.inviteInfo) : (s.lang==='kz'?'Сілтеме жіберіп, достасыңдар':'Отправь ссылку и станьте друзьями')}</div></div>
+  <div onclick="inviteFriend()" data-hover style="height:38px;padding:0 15px;border-radius:13px;background:linear-gradient(150deg,#1B6B50,#0E3B2E);display:grid;place-items:center;cursor:pointer;flex:none;box-shadow:0 10px 20px -10px rgba(14,59,46,.6)">
+  <span style="font-family:var(--fh);font-size:14px;color:#fff;text-transform:uppercase;letter-spacing:.05em">${s.inviteLoading?'…':esc(t.inviteBtn)}</span></div></div>
   <div style="display:flex;align-items:baseline;justify-content:space-between;padding:24px 22px 12px">
   <h3 style="font-size:22px;text-transform:uppercase">${esc(t.collectionTitle)}</h3>
   <span style="font-size:11.5px;font-weight:700;color:var(--mut)">${s.found.length}/${MOSQUES.length}</span></div>
@@ -1248,6 +1376,25 @@ function overlayToast(s){
   return `<div id="toastEl" style="position:absolute;left:22px;right:22px;bottom:112px;z-index:90;display:flex;align-items:center;gap:11px;padding:14px 16px;border-radius:20px;background:rgba(8,37,28,.94);backdrop-filter:blur(10px);box-shadow:0 20px 40px -16px rgba(8,37,28,.7);animation:up .32s cubic-bezier(.2,.85,.2,1) both">
   <div style="width:30px;height:30px;border-radius:11px;background:rgba(231,199,101,.18);border:1px solid rgba(231,199,101,.34);display:grid;place-items:center;color:#E7C765;flex:none">${svg.check}</div>
   <span style="font-size:12.5px;font-weight:700;color:#fff;line-height:1.4">${esc(s.toast)}</span></div>`;
+}
+
+function overlayDuelInvite(t,s){
+  const inv = s.incomingDuelInvite;
+  if(!inv) return '';
+  return `<div style="position:absolute;inset:0;z-index:80;animation:fade .22s ease">
+  <div style="position:absolute;inset:0;background:rgba(8,37,28,.55);backdrop-filter:blur(5px)"></div>
+  <div style="position:absolute;left:20px;right:20px;bottom:24px;border-radius:26px;background:var(--cream);box-shadow:0 -10px 40px -10px rgba(8,37,28,.5);padding:20px;animation:up .3s cubic-bezier(.2,.85,.2,1) both">
+  <div style="display:flex;align-items:center;gap:12px">
+  <div style="width:46px;height:46px;border-radius:16px;background:linear-gradient(150deg,#1B6B50,#0E3B2E);display:grid;place-items:center;color:#E7C765;font-family:var(--fh);font-size:17px;flex:none">${esc(initials(inv.hostName))}</div>
+  <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:800">${esc(inv.hostName)}</div>
+  <div style="font-size:12px;color:var(--mut);margin-top:2px">${s.lang==='kz'?'ойынға шақырды':'приглашает в игру'}</div></div>
+  </div>
+  <div style="display:flex;gap:10px;margin-top:16px">
+  <div onclick="declineDuelInvite()" data-hover style="flex:1;height:46px;border-radius:15px;background:var(--paper);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer;font-family:var(--fh);font-size:14px;text-transform:uppercase;color:var(--g8)">${s.lang==='kz'?'Жоқ':'Нет'}</div>
+  <div onclick="acceptDuelInvite()" data-hover style="flex:1;height:46px;border-radius:15px;background:linear-gradient(150deg,#1B6B50,#0E3B2E);display:flex;align-items:center;justify-content:center;cursor:pointer;font-family:var(--fh);font-size:14px;text-transform:uppercase;color:#fff">${s.lang==='kz'?'Қабылдау':'Принять'}</div>
+  </div>
+  </div>
+  </div>`;
 }
 
 function overlayNav(t,s){
@@ -1327,56 +1474,53 @@ function screenSettings(t,s){
 }
 
 function screenDuelMenu(t,s){
+  const friends = s.friends||[];
+  const rows = friends.map(f=>`
+    <div style="display:flex;align-items:center;gap:12px;padding:13px;border-radius:20px;background:var(--paper);border:1px solid var(--line);margin-bottom:9px">
+    <div style="width:42px;height:42px;border-radius:15px;background:var(--g1);border:1px solid var(--g2);display:grid;place-items:center;font-family:var(--fh);font-size:15px;color:var(--g7);flex:none">${esc(initials(f.name))}</div>
+    <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</div>
+    <div style="font-size:11px;color:var(--mut);margin-top:1px">${esc(f.city)}</div></div>
+    <button onclick="inviteFriendToDuelById('${f.id}')" data-hover style="height:38px;padding:0 14px;border-radius:12px;background:linear-gradient(150deg,#1B6B50,#0E3B2E);color:#fff;font-family:var(--fh);font-size:13px;text-transform:uppercase;letter-spacing:.03em;cursor:pointer" ${s.duelLoading?'disabled':''}>${s.lang==='kz'?'Шақыру':'Позвать'}</button>
+    </div>`).join('');
   return `<div class="sc" style="position:absolute;inset:0;overflow-y:auto;padding:24px 0 40px;animation:fade .28s ease">
   <div style="display:flex;align-items:center;gap:12px;padding:4px 20px 6px">
   <div onclick="goHome()" data-hover style="width:38px;height:38px;border-radius:13px;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;cursor:pointer;color:var(--g8)">${svg.back}</div>
   <h3 style="font-size:24px;text-transform:uppercase">${s.lang==='kz'?'Досыңмен ойнау':'Игра с другом'}</h3>
   </div>
   <div style="padding:18px 22px 0">
-  <div onclick="createDuelRoom()" data-hover style="position:relative;border-radius:26px;overflow:hidden;padding:22px;cursor:pointer;background:linear-gradient(158deg,#1B6B50,#0E3B2E 68%);box-shadow:0 22px 40px -22px rgba(14,59,46,.7)">
-  <div style="position:absolute;inset:0;opacity:.5;background:repeating-conic-gradient(from 22.5deg at 88% 8%,rgba(255,255,255,.055) 0deg 11deg,transparent 11deg 22.5deg)"></div>
-  <div style="position:relative;display:flex;align-items:center;gap:14px">
-  <div style="width:52px;height:52px;border-radius:18px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.28);display:grid;place-items:center;flex:none">
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></div>
-  <div style="flex:1;min-width:0">
-  <div style="font-family:var(--fh);font-size:20px;color:#fff;text-transform:uppercase">${s.lang==='kz'?'Бөлме құру':'Создать комнату'}</div>
-  <div style="margin-top:3px;font-size:12px;color:rgba(255,255,255,.6)">${s.lang==='kz'?'Код аласың, досыңа жібересің':'Получишь код и отправишь другу'}</div>
-  </div>
-  ${svg.arrow.replaceAll('{{s}}','18').replace('{{c}}','rgba(255,255,255,.6)')}
-  </div></div>
-
-  <div style="display:flex;align-items:center;gap:10px;margin:22px 0">
-  <div style="flex:1;height:1px;background:var(--line)"></div>
-  <span style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--mut)">${s.lang==='kz'?'немесе':'или'}</span>
-  <div style="flex:1;height:1px;background:var(--line)"></div>
-  </div>
-
-  <form onsubmit="submitJoinDuel(event)">
-  <label class="glabel">${s.lang==='kz'?'Досыңның кодын енгіз':'Введи код друга'}</label>
-  <input id="duel_code" class="ginput" style="text-transform:uppercase;letter-spacing:.2em;font-family:var(--fh);font-size:18px;text-align:center" maxlength="6" placeholder="ABC123">
-  <button type="submit" data-hover style="width:100%;margin-top:12px;height:52px;border-radius:18px;background:linear-gradient(150deg,#E7C765,#C9A227);font-family:var(--fh);font-size:17px;color:#3A2D06;text-transform:uppercase;letter-spacing:.03em" ${s.duelLoading?'disabled':''}>${s.duelLoading?'…':(s.lang==='kz'?'Қосылу':'Присоединиться')}</button>
-  </form>
-  ${s.duelError?`<div style="margin-top:14px;padding:12px 14px;border-radius:14px;background:#FDECEC;border:1px solid rgba(190,60,60,.28);color:#A03232;font-size:12.5px;line-height:1.5">${esc(s.duelError)}</div>`:''}
+  ${s.duelDeclinedMsg?`<div style="margin-bottom:16px;padding:12px 14px;border-radius:14px;background:var(--gold1);border:1px solid rgba(201,162,39,.32);color:#8A6E10;font-size:12.5px;line-height:1.5">${esc(s.duelDeclinedMsg)}</div>`:''}
+  ${s.duelError?`<div style="margin-bottom:16px;padding:12px 14px;border-radius:14px;background:#FDECEC;border:1px solid rgba(190,60,60,.28);color:#A03232;font-size:12.5px;line-height:1.5">${esc(s.duelError)}</div>`:''}
+  ${s.friendsLoading ? `<div style="text-align:center;padding:30px 0;color:var(--mut);font-size:13px">${s.lang==='kz'?'Жүктелуде…':'Загрузка…'}</div>`
+    : (friends.length ? rows : `<div style="text-align:center;padding:30px 10px;color:var(--mut);font-size:13px;line-height:1.6">${s.lang==='kz'?'Әзірге достарың жоқ. Профиль бетінен «Дос шақыру» арқылы сілтеме жібер.':'Пока нет друзей. На странице профиля отправь ссылку через «Пригласить друга».'}</div>`)}
   </div>
   </div>`;
 }
 
 function screenDuelWait(t,s){
-  const room = s.duelRoom;
-  const code = room ? room.code : '------';
+  const name = s.duelOpponentName || (s.lang==='kz'?'Досың':'Друг');
   return `<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 28px;background:linear-gradient(168deg,#14523E 0%,#0E3B2E 46%,#08251C 100%);animation:fade .3s ease">
   <div style="width:70px;height:70px;border-radius:24px;background:linear-gradient(150deg,rgba(255,255,255,.22),rgba(255,255,255,.04));border:1px solid rgba(231,199,101,.42);display:grid;place-items:center;color:#E7C765;animation:float 3.2s ease-in-out infinite">
   <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M2 20.5c0-3.4 3.1-5.6 7-5.6s7 2.2 7 5.6M17.6 5.4a3.3 3.3 0 0 1 0 6.2M19.4 14.9c2.3.7 3.6 2.4 3.6 4.4"/></svg>
   </div>
-  <h2 style="margin-top:22px;font-size:24px;color:#fff;text-transform:uppercase">${s.lang==='kz'?'Досыңды күтеміз':'Ждём друга'}</h2>
-  <p style="margin-top:8px;color:rgba(255,255,255,.6);font-size:13px;line-height:1.6;max-width:260px">${s.lang==='kz'?'Осы кодты досыңа жібер, ол «Досыммен ойнау» бөлімінен енгізсін':'Отправь этот код другу — пусть введёт его в разделе «Играть с другом»'}</p>
-  <div onclick="copyDuelCode()" style="margin-top:24px;padding:16px 26px;border-radius:20px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);cursor:pointer">
-  <div style="font-family:var(--fh);font-size:38px;letter-spacing:.25em;color:#E7C765">${esc(code)}</div>
-  <div style="margin-top:4px;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.45)">${s.lang==='kz'?'басып көшіру':'нажми, чтобы скопировать'}</div>
-  </div>
-  <div class="dspinner" style="margin-top:28px;border-color:rgba(255,255,255,.2);border-top-color:#E7C765"></div>
+  <h2 style="margin-top:22px;font-size:22px;color:#fff;text-transform:uppercase">${esc(name)}</h2>
+  <p style="margin-top:8px;color:rgba(255,255,255,.6);font-size:13px;line-height:1.6;max-width:260px">${s.lang==='kz'?'шақыруды қабылдауын күтеміз…':'ждём, пока примет приглашение…'}</p>
+  <div class="dspinner" style="margin-top:26px;border-color:rgba(255,255,255,.2);border-top-color:#E7C765"></div>
   <div onclick="leaveDuel()" data-hover style="margin-top:30px;height:44px;padding:0 20px;border-radius:16px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);display:flex;align-items:center;gap:8px;cursor:pointer;color:rgba(255,255,255,.7)">
   ${svg.close}<span style="font-size:12.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase">${s.lang==='kz'?'Бас тарту':'Отмена'}</span></div>
+  </div>`;
+}
+
+function screenFriendInvite(t,s){
+  const inv = s.incomingFriendInvite;
+  const name = inv ? inv.fromName : '';
+  return `<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 28px;background:linear-gradient(168deg,#14523E 0%,#0E3B2E 46%,#08251C 100%);animation:fade .3s ease">
+  <div style="width:76px;height:76px;border-radius:26px;background:linear-gradient(150deg,#E7C765,#C9A227);display:grid;place-items:center;color:#3A2D06;font-family:var(--fh);font-size:28px;box-shadow:0 18px 36px -12px rgba(201,162,39,.7)">${esc(initials(name))}</div>
+  <h2 style="margin-top:20px;font-size:22px;color:#fff;text-transform:uppercase">${esc(name)}</h2>
+  <p style="margin-top:8px;color:rgba(255,255,255,.65);font-size:13.5px;line-height:1.6">${s.lang==='kz'?'сізді досқа шақырды':'приглашает вас в друзья'}</p>
+  <div style="display:flex;gap:10px;margin-top:28px;width:100%;max-width:320px">
+  <div onclick="declineFriendInvite()" data-hover style="flex:1;height:52px;border-radius:18px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;font-family:var(--fh);font-size:15px;text-transform:uppercase">${s.lang==='kz'?'Жоқ':'Нет'}</div>
+  <div onclick="acceptFriendInvite()" data-hover style="flex:1;height:52px;border-radius:18px;background:linear-gradient(150deg,#E7C765,#C9A227);display:flex;align-items:center;justify-content:center;cursor:pointer;color:#3A2D06;font-family:var(--fh);font-size:15px;text-transform:uppercase">${s.inviteLoading?'…':(s.lang==='kz'?'Иә, дос':'Да, дружим')}</div>
+  </div>
   </div>`;
 }
 
@@ -1473,8 +1617,9 @@ function render(){
   else if(s.screen==='duelCountdown') body = screenDuelCountdown(t,s);
   else if(s.screen==='duelGame') body = screenDuelGame(t,s);
   else if(s.screen==='duelResult') body = screenDuelResult(t,s);
+  else if(s.screen==='friendInvite') body = screenFriendInvite(t,s);
   else if(s.screen==='profile') body = screenProfile(t,s);
-  body += overlaySheet(t,s) + overlayToast(s) + overlayNav(t,s);
+  body += overlaySheet(t,s) + overlayToast(s) + overlayDuelInvite(t,s) + overlayNav(t,s);
   document.getElementById('phone').innerHTML = body;
 }
 
@@ -1494,7 +1639,11 @@ if(state.screen==='splash'){
   setTimeout(async ()=>{
     await Promise.all([mosquesReady, authReady]);
     if(state.screen==='splash'){
-      setState({screen: (sb && state.playerId) ? 'home' : 'auth'});
+      if(state.incomingFriendInvite){
+        setState({screen:'friendInvite'});
+      } else {
+        setState({screen: (sb && state.playerId) ? 'home' : 'auth'});
+      }
     }
   },2300);
 }
