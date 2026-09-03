@@ -579,7 +579,7 @@ function screenSplash(t){
 
 function screenHome(t,s){
   const levelsHtml = LEVELS.map(l=>{
-    const stars=[0,1,2].map(i=>svg.star.replace('{{s}}','13').replace('{{f}}', i<l.stars?'#C9A227':'none').replace('{{c}}', i<l.stars?'#C9A227':'#C9D6D0')).join('');
+    const stars=[0,1,2].map(i=>svg.star.replaceAll('{{s}}','13').replace('{{f}}', i<l.stars?'#C9A227':'none').replace('{{c}}', i<l.stars?'#C9A227':'#C9D6D0')).join('');
     return `<div onclick="start('${l.id}')" data-hover style="position:relative;display:flex;align-items:center;gap:14px;padding:14px;border-radius:24px;background:var(--paper);border:1px solid var(--line);cursor:pointer;box-shadow:0 6px 18px -12px rgba(8,37,28,.4)">
     <div style="position:relative;width:54px;height:54px;border-radius:19px;display:grid;place-items:center;flex:none;background:linear-gradient(158deg,${l.g1},${l.g2});box-shadow:0 12px 22px -10px ${l.g2}cc,inset 0 2px 0 rgba(255,255,255,.28)">
     <div style="position:absolute;inset:0;border-radius:19px;background:linear-gradient(180deg,rgba(255,255,255,.42),transparent 52%);pointer-events:none"></div>${svg.mosqueThin}</div>
@@ -588,7 +588,7 @@ function screenHome(t,s){
     <div style="display:flex;align-items:center;gap:9px;margin-top:5px;font-size:11.5px;color:var(--mut);font-weight:600">
     <span>${l.cols}×${Math.ceil(l.pairs*2/l.cols)}</span><span style="width:3px;height:3px;border-radius:50%;background:var(--g3)"></span><span>${mm(l.seconds)}</span></div></div>
     <div style="display:flex;gap:2.5px">${stars}</div>
-    ${svg.arrow.replace('{{s}}','18').replace('{{c}}','#9AC7B3')}
+    ${svg.arrow.replaceAll('{{s}}','18').replace('{{c}}','#9AC7B3')}
     </div>`;
   }).join('');
   const collHtml = MOSQUES.map(m=>{
@@ -597,7 +597,7 @@ function screenHome(t,s){
     <div style="position:relative;height:106px;border-radius:19px;overflow:hidden;background:var(--g2);border:1px solid var(--line)">
     <div role="img" aria-label="${esc(m.name[s.lang])}" style="position:absolute;inset:0;background-image:url('${m.img}');background-size:cover;background-position:center"></div>
     <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(8,37,28,.62),transparent 58%)"></div>
-    ${!has?`<div style="position:absolute;inset:0;display:grid;place-items:center;background:rgba(8,37,28,.55);backdrop-filter:blur(3px);color:rgba(255,255,255,.72)">${svg.lock.replace('{{s}}','18')}</div>`:''}
+    ${!has?`<div style="position:absolute;inset:0;display:grid;place-items:center;background:rgba(8,37,28,.55);backdrop-filter:blur(3px);color:rgba(255,255,255,.72)">${svg.lock.replaceAll('{{s}}','18')}</div>`:''}
     </div>
     <div style="font-size:10.5px;font-weight:700;color:var(--ink);margin-top:7px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.city[s.lang])}</div>
     </div>`;
@@ -621,7 +621,7 @@ function screenHome(t,s){
   <p style="margin:9px 0 0;color:rgba(255,255,255,.6);font-size:13px;line-height:1.62;max-width:252px;text-wrap:pretty">${esc(t.heroDesc)}</p>
   <div onclick="goLevels()" data-hover style="margin-top:20px;height:56px;border-radius:19px;background:linear-gradient(150deg,#E7C765,#C9A227);display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer;box-shadow:0 14px 26px -10px rgba(201,162,39,.7),inset 0 1px 0 rgba(255,255,255,.45)">
   <span style="font-family:var(--fh);font-size:19px;color:#3A2D06;text-transform:uppercase;letter-spacing:.03em">${esc(t.start)}</span>
-  ${svg.arrow.replace('{{s}}','19').replace('{{c}}','#3A2D06')}</div>
+  ${svg.arrow.replaceAll('{{s}}','19').replace('{{c}}','#3A2D06')}</div>
   <div style="display:flex;gap:8px;margin-top:16px">
   <div style="flex:1;padding:11px 12px;border-radius:15px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.11)">
   <div style="font-family:var(--fh);font-size:22px;color:#fff;line-height:1">${s.found.length}<span style="font-size:12px;color:rgba(255,255,255,.42)">/${MOSQUES.length}</span></div>
@@ -662,7 +662,7 @@ function screenLevels(t,s){
     <div style="display:flex;gap:14px;margin-top:12px">
     <span style="display:flex;align-items:center;gap:5px;color:rgba(255,255,255,.85);font-size:11.5px;font-weight:700">${svg.clockThin} ${mm(l.seconds)}</span>
     <span style="display:flex;align-items:center;gap:5px;color:#E7C765;font-size:11.5px;font-weight:700">${svg.reward} +${l.reward}</span></div></div>
-    ${svg.arrow.replace('{{s}}','20').replace('{{c}}','rgba(255,255,255,.55)')}
+    ${svg.arrow.replaceAll('{{s}}','20').replace('{{c}}','rgba(255,255,255,.55)')}
     </div></div>`;
   }).join('');
   return `<div class="sc" style="position:absolute;inset:0;overflow-y:auto;padding:24px 0 104px;animation:fade .28s ease">
@@ -743,7 +743,7 @@ function overlaySheet(t,s){
   <p style="margin:15px 0 0;font-size:13.5px;line-height:1.62;color:var(--ink);text-wrap:pretty">${esc(m.fact[s.lang])}</p>
   <div onclick="closeSheet()" data-hover style="margin-top:18px;height:52px;border-radius:18px;background:linear-gradient(150deg,#1B6B50,#0E3B2E);display:flex;align-items:center;justify-content:center;gap:9px;cursor:pointer;box-shadow:0 14px 26px -12px rgba(14,59,46,.65)">
   <span style="font-family:var(--fh);font-size:18px;color:#fff;text-transform:uppercase;letter-spacing:.04em">${esc(t.continueBtn)}</span>
-  ${svg.arrow.replace('{{s}}','17').replace('{{c}}','#E7C765')}</div>
+  ${svg.arrow.replaceAll('{{s}}','17').replace('{{c}}','#E7C765')}</div>
   </div></div></div>`;
 }
 
@@ -752,7 +752,7 @@ function screenVictory(t,s){
   const stars = s.stars || 3;
   const resultStars = [0,1,2].map(i=>{
     const wrap = 'animation:pop .5s cubic-bezier(.2,.8,.2,1) '+(0.25+i*0.14)+'s both;'+(i===1?'transform:translateY(-8px)':'');
-    return `<div style="${wrap}">${svg.star.replace('{{s}}','30').replace('{{f}}',i<stars?'#C9A227':'none').replace('{{c}}',i<stars?'#C9A227':'rgba(255,255,255,.35)')}</div>`;
+    return `<div style="${wrap}">${svg.star.replaceAll('{{s}}','30').replace('{{f}}',i<stars?'#C9A227':'none').replace('{{c}}',i<stars?'#C9A227':'rgba(255,255,255,.35)')}</div>`;
   }).join('');
   const confetti = Array.from({length:20},(_,i)=>{
     const cols=['#E7C765','#C9A227','#5AA184','#ffffff','#9AC7B3'];
@@ -777,11 +777,11 @@ function screenVictory(t,s){
   </div></div>
   <div style="display:flex;flex-direction:column;gap:10px;margin-top:20px">
   <div onclick="nextLevel()" data-hover style="height:56px;border-radius:19px;background:linear-gradient(150deg,#E7C765,#C9A227);display:flex;align-items:center;justify-content:center;gap:9px;cursor:pointer;box-shadow:0 16px 30px -12px rgba(201,162,39,.7),inset 0 1px 0 rgba(255,255,255,.45)">
-  <span style="font-family:var(--fh);font-size:19px;color:#3A2D06;text-transform:uppercase;letter-spacing:.03em">${esc(t.nextLevel)}</span>${svg.arrow.replace('{{s}}','18').replace('{{c}}','#3A2D06')}</div>
+  <span style="font-family:var(--fh);font-size:19px;color:#3A2D06;text-transform:uppercase;letter-spacing:.03em">${esc(t.nextLevel)}</span>${svg.arrow.replaceAll('{{s}}','18').replace('{{c}}','#3A2D06')}</div>
   <div style="display:flex;gap:10px">
   <div onclick="replay()" data-hover style="flex:1;height:52px;border-radius:18px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;color:#fff">${svg.replay}<span style="font-family:var(--fh);font-size:16px;text-transform:uppercase;letter-spacing:.04em">${esc(t.replay)}</span></div>
   <div onclick="doShare()" data-hover style="flex:1;height:52px;border-radius:18px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;color:#fff">${svg.share}<span style="font-family:var(--fh);font-size:16px;text-transform:uppercase;letter-spacing:.04em">${esc(t.share)}</span></div></div>
-  <div onclick="goHome()" data-hover style="display:flex;align-items:center;justify-content:center;gap:7px;height:44px;cursor:pointer;color:rgba(255,255,255,.6)">${svg.home.replace('{{s}}','15')}<span style="font-size:12.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase">${esc(t.home)}</span></div>
+  <div onclick="goHome()" data-hover style="display:flex;align-items:center;justify-content:center;gap:7px;height:44px;cursor:pointer;color:rgba(255,255,255,.6)">${svg.home.replaceAll('{{s}}','15')}<span style="font-size:12.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase">${esc(t.home)}</span></div>
   </div></div></div>`;
 }
 
@@ -854,7 +854,7 @@ function screenProfile(t,s){
     <div role="img" aria-label="${esc(m.name[s.lang])}" style="position:absolute;inset:0;background-image:url('${m.img}');background-size:cover;background-position:center;${has?'':'filter:grayscale(.85) brightness(.8)'}"></div>
     <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(8,37,28,.6),transparent 60%)"></div>
     <span style="position:absolute;left:8px;right:8px;bottom:7px;font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.94);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.city[s.lang])}</span>
-    ${!has?`<div style="position:absolute;inset:0;display:grid;place-items:center;background:rgba(8,37,28,.58);backdrop-filter:blur(3px);color:rgba(255,255,255,.7)">${svg.lock.replace('{{s}}','17')}</div>`:''}
+    ${!has?`<div style="position:absolute;inset:0;display:grid;place-items:center;background:rgba(8,37,28,.58);backdrop-filter:blur(3px);color:rgba(255,255,255,.7)">${svg.lock.replaceAll('{{s}}','17')}</div>`:''}
     </div>`;
   }).join('');
   return `<div class="sc" style="position:absolute;inset:0;overflow-y:auto;padding:24px 0 104px;animation:fade .28s ease">
@@ -921,7 +921,7 @@ function overlayNav(t,s){
     (on? 'background:'+accent+';color:#fff;box-shadow:0 10px 20px -10px rgba(14,59,46,.6);' : 'background:transparent;color:#657771;');
   return `<div style="position:absolute;left:0;right:0;bottom:0;z-index:50;padding:0 14px 12px;pointer-events:none">
   <div style="pointer-events:auto;height:70px;border-radius:26px;background:rgba(255,255,255,.82);backdrop-filter:blur(18px) saturate(1.4);border:1px solid rgba(255,255,255,.75);box-shadow:0 -2px 0 rgba(8,37,28,.03),0 18px 38px -16px rgba(8,37,28,.42);display:grid;grid-template-columns:repeat(4,1fr);align-items:center;padding:0 6px">
-  <div onclick="goHome()" style="${nav(s.screen==='home')}">${svg.home.replace('{{s}}','21')}<span style="font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase">${esc(t.home)}</span></div>
+  <div onclick="goHome()" style="${nav(s.screen==='home')}">${svg.home.replaceAll('{{s}}','21')}<span style="font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase">${esc(t.home)}</span></div>
   <div onclick="goLevels()" style="${nav(s.screen==='levels'||s.screen==='game')}">${svg.games}<span style="font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase">${esc(t.games)}</span></div>
   <div onclick="goBoard()" style="${nav(s.screen==='board')}">${svg.rating}<span style="font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase">${esc(t.rating)}</span></div>
   <div onclick="goProfile()" style="${nav(s.screen==='profile')}">${svg.profile}<span style="font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase">${esc(t.profile)}</span></div>
