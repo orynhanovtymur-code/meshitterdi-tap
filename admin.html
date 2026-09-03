@@ -60,7 +60,55 @@ const ADMIN_EMAIL = 'digital@muftyat.kz';
 const BUCKET = 'mosque-photos';
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+const BUILTIN_BASE = 'https://orynhanovtymur-code.github.io/meshitterdi-tap/assets/mosques-web/';
+const BUILTIN_MOSQUES = [
+  {id:'astana', name_kz:'Хазірет Сұлтан', name_ru:'Хазрет Султан', city_kz:'Астана', city_ru:'Астана',
+   fact_kz:'Ақ мәрмәрмен көмкерілген төрт мұнара мен биік басты күмбез — елорданың ең танымал бейнесі.',
+   fact_ru:'Четыре минарета из белого мрамора и высокий главный купол — самый узнаваемый образ столицы.'},
+  {id:'turkistan', name_kz:'Түркістан мешіті', name_ru:'Мечеть Туркестана', city_kz:'Түркістан', city_ru:'Туркестан',
+   fact_kz:'Көгілдір күмбез бен құмтас қабырғалар ежелгі қаланың сәулет тілін жалғастырады.',
+   fact_ru:'Бирюзовый купол и песчаниковые стены продолжают архитектурный язык древнего города.'},
+  {id:'almaty', name_kz:'Алматы орталық мешіті', name_ru:'Центральная мечеть Алматы', city_kz:'Алматы', city_ru:'Алматы',
+   fact_kz:'Тау силуэтінің аясында тұрған күмбез қаланың оңтүстік көрінісіне ерекше рең береді.',
+   fact_ru:'Купол на фоне горного силуэта задаёт особый ритм южной панораме города.'},
+  {id:'shymkent', name_kz:'Шымкент мешіті', name_ru:'Мечеть Шымкента', city_kz:'Шымкент', city_ru:'Шымкент',
+   fact_kz:'Оңтүстіктің ең ірі жамағат орындарының бірі — кең аула мен симметриялы кіреберіс.',
+   fact_ru:'Одно из крупнейших молитвенных мест юга — широкий двор и симметричный вход.'},
+  {id:'basmeshit', name_kz:'Бас мешіт', name_ru:'Главная мечеть', city_kz:'Астана', city_ru:'Астана',
+   fact_kz:'Орталық Азиядағы ең ауқымды құрылыстардың бірі: көлемі мен геометриясы ерекше.',
+   fact_ru:'Одно из самых масштабных сооружений Центральной Азии: выделяется объёмом и геометрией.'},
+  {id:'mangystau', name_kz:'Маңғыстау мешіті', name_ru:'Мечеть Мангистау', city_kz:'Ақтау', city_ru:'Актау',
+   fact_kz:'Каспий жағалауының ашық аспаны мен ақшыл тасы сәулетіне ерекше жарық береді.',
+   fact_ru:'Открытое небо каспийского берега и светлый камень дают архитектуре особый свет.'},
+  {id:'pavlodar', name_kz:'Мәшһүр Жүсіп мешіті', name_ru:'Мечеть Машхур Жусупа', city_kz:'Павлодар', city_ru:'Павлодар',
+   fact_kz:'Ертіс жағасындағы бұл мешіт өңірдің ағартушысының атымен аталады.',
+   fact_ru:'Мечеть на берегу Иртыша названа в честь просветителя региона.'},
+  {id:'sko', name_kz:'Петропавл мешіті', name_ru:'Мечеть Петропавловска', city_kz:'Петропавл', city_ru:'Петропавловск',
+   fact_kz:'Солтүстіктің қысқа жазы мен ұзақ көкжиегі мешіт күмбезін алыстан көрсетеді.',
+   fact_ru:'Короткое лето и длинный горизонт севера открывают купол издалека.'},
+  {id:'ulytau', name_kz:'Ұлытау мешіті', name_ru:'Мечеть Улытау', city_kz:'Жезқазған', city_ru:'Жезказган',
+   fact_kz:'Дала ортасындағы жалғыз силуэт — қарапайым көлем, таза сызық.',
+   fact_ru:'Одинокий силуэт в центре степи — простой объём, чистая линия.'},
+  {id:'bko', name_kz:'Орал мешіті', name_ru:'Мечеть Уральска', city_kz:'Орал', city_ru:'Уральск',
+   fact_kz:'Батыс өңірінің шекара қаласында ғасырлық сауда жолдарының ізі сезіледі.',
+   fact_ru:'В пограничном городе запада чувствуется след вековых торговых путей.'},
+  {id:'zhambyl', name_kz:'Тараз мешіті', name_ru:'Мечеть Тараза', city_kz:'Тараз', city_ru:'Тараз',
+   fact_kz:'Тараз — Жібек жолының тірегі; мешіт сол мұраның заманауи жалғасы.',
+   fact_ru:'Тараз — опора Шёлкового пути; мечеть — современное продолжение этого наследия.'},
+  {id:'shko', name_kz:'Өскемен мешіті', name_ru:'Мечеть Усть-Каменогорска', city_kz:'Өскемен', city_ru:'Усть-Каменогорск',
+   fact_kz:'Алтай тауларының баурайындағы мешіт күмбезі көк түстің қою реңкімен ерекшеленеді.',
+   fact_ru:'У подножия Алтая купол мечети выделяется глубоким синим тоном.'},
+  {id:'karagandy', name_kz:'Қарағанды мешіті', name_ru:'Мечеть Караганды', city_kz:'Қарағанды', city_ru:'Караганда',
+   fact_kz:'Өнеркәсіп қаласының ортасында тыныштық аралы — кең аула, тік ырғақ.',
+   fact_ru:'Остров тишины в центре промышленного города — широкий двор, строгий ритм.'},
+  {id:'atyrau', name_kz:'Атырау мешіті', name_ru:'Мечеть Атырау', city_kz:'Атырау', city_ru:'Атырау',
+   fact_kz:'Жайық өзені екі құрлықты бөледі — мешіт сол шекараның бір жағында тұр.',
+   fact_ru:'Река Урал разделяет два континента — мечеть стоит на одной из сторон границы.'}
+];
+
 const app = document.getElementById('app');
+let importing = false;
+let importProgress = '';
 let session = null;
 let mosques = [];
 let editing = null;   // mosque row being edited, or {} for new
@@ -208,6 +256,43 @@ function deleteMosqueById(id){
   if(m) deleteMosque(m);
 }
 
+async function importBuiltins(){
+  if(importing) return;
+  importing = true; errorMsg=''; infoMsg=''; importProgress='Басталды…';
+  render();
+  let added = 0, skipped = 0;
+  for(let i=0;i<BUILTIN_MOSQUES.length;i++){
+    const b = BUILTIN_MOSQUES[i];
+    importProgress = (i+1)+'/'+BUILTIN_MOSQUES.length+': '+b.name_kz;
+    render();
+    const already = mosques.some(m=>m.name_kz===b.name_kz && m.city_kz===b.city_kz);
+    if(already){ skipped++; continue; }
+    try{
+      const resp = await fetch(BUILTIN_BASE + b.id + '.jpg');
+      if(!resp.ok) throw new Error('сурет жүктелмеді (HTTP '+resp.status+')');
+      const blob = await resp.blob();
+      const path = b.id + '-' + (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())) + '.jpg';
+      const { error: upErr } = await sb.storage.from(BUCKET).upload(path, blob, { upsert:false, contentType:'image/jpeg' });
+      if(upErr) throw upErr;
+      const { data: pub } = sb.storage.from(BUCKET).getPublicUrl(path);
+      const { error: insErr } = await sb.from('mosques').insert({
+        name_kz:b.name_kz, name_ru:b.name_ru, city_kz:b.city_kz, city_ru:b.city_ru,
+        fact_kz:b.fact_kz, fact_ru:b.fact_ru, image_url:pub.publicUrl, sort_order:i
+      });
+      if(insErr) throw insErr;
+      added++;
+    }catch(e){
+      importing = false; importProgress='';
+      errorMsg = 'Импорт қатесі ('+b.name_kz+'): '+(e.message||e);
+      await loadMosques();
+      return;
+    }
+  }
+  importing = false; importProgress='';
+  infoMsg = added+' мешіт қосылды'+(skipped ? ', '+skipped+' бұрын қосылған болатын' : '')+'.';
+  await loadMosques();
+}
+
 function renderLogin(){
   return `<div class="login-wrap"><form class="card login-card" onsubmit="login(event)">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:22px">
@@ -280,7 +365,12 @@ function renderDashboard(){
   ${errorMsg?`<div class="err">${esc(errorMsg)}</div>`:''}
   ${infoMsg?`<div class="msg">${esc(infoMsg)}</div>`:''}
 
-  ${editing ? renderForm() : `<button class="btn btn-primary" style="margin-bottom:20px" onclick="startNew()">+ Жаңа мешіт қосу</button>`}
+  ${editing ? renderForm() : `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
+    <button class="btn btn-primary" onclick="startNew()">+ Жаңа мешіт қосу</button>
+    <button class="btn btn-ghost" onclick="importBuiltins()" ${importing?'disabled':''}>
+      ${importing ? '<span class="spinner" style="border-color:rgba(20,82,62,.25);border-top-color:var(--g7)"></span>&nbsp; '+esc(importProgress) : 'Сайттағы 14 мешітті импорттау'}
+    </button>
+  </div>`}
 
   <div class="card">
     ${loading && !mosques.length ? `<div style="padding:24px;text-align:center;color:var(--mut)">Жүктелуде…</div>` :
