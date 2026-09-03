@@ -160,7 +160,7 @@ const CHIP_OFF = 'height:24px;padding:0 11px;border-radius:8px;background:transp
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 let state = { screen:'splash', lang:'kz', coins:1240, found:[], name:'Ойыншы', city:'', email:'',
-  playerId:null, bestScore:0, leaderboard:null,
+  playerId:null, bestScore:0, leaderboard:null, unlockedStage:1, currentStage:null,
   authMode:'register', authError:'', authInfo:'', authLoading:false,
   settingsError:'', settingsInfo:'', settingsLoading:false, prevScreen:'home',
   duelRoom:null, duelRole:null, duelChannel:null, duelError:'', duelLoading:false,
@@ -170,7 +170,6 @@ let state = { screen:'splash', lang:'kz', coins:1240, found:[], name:'Ойынш
   incomingDuelInvite:null,
   inviteLoading:false, inviteInfo:'', myFriendCode:null,
   addFriendError:'', addFriendInfo:'', addFriendLoading:false,
-  categoryId:null, categoryName:'', categoriesLoading:false,
   levelId:'easy', cards:[], flipped:[], matched:[], justMatched:[],
   moves:0, left:90, elapsed:0, sheet:null, score:0, earned:0, stars:3, toast:null, locked:false };
 
@@ -180,6 +179,7 @@ try{
   const f = localStorage.getItem('mmt:found'); if(f) state.found = JSON.parse(f)||[];
   const n = localStorage.getItem('mmt:name'); if(n) state.name = n;
   const ct = localStorage.getItem('mmt:city'); if(ct) state.city = ct;
+  const us = localStorage.getItem('mmt:unlockedStage'); if(us) state.unlockedStage = parseInt(us,10)||1;
 }catch(e){}
 
 function persist(o){ try{
@@ -188,6 +188,7 @@ function persist(o){ try{
   if(o.found!=null) localStorage.setItem('mmt:found',JSON.stringify(o.found));
   if(o.name!=null) localStorage.setItem('mmt:name',o.name);
   if(o.city!=null) localStorage.setItem('mmt:city',o.city);
+  if(o.unlockedStage!=null) localStorage.setItem('mmt:unlockedStage',String(o.unlockedStage));
 }catch(e){}
   persistCloud();
 }
@@ -204,7 +205,8 @@ function persistCloud(){
       lang: state.lang,
       coins: state.coins,
       found: state.found,
-      best_score: state.bestScore||0
+      best_score: state.bestScore||0,
+      unlocked_stage: state.unlockedStage||1
     }).eq('id', state.playerId).then(({error})=>{
       if(error) console.warn('Supabase save failed:', error.message);
     });
@@ -219,7 +221,8 @@ async function hydratePlayer(uid, defaults){
       id: uid,
       name: (defaults && defaults.name) || state.name,
       city: (defaults && defaults.city) || state.city || null,
-      lang: state.lang, coins: state.coins, found: state.found, best_score: state.bestScore||0
+      lang: state.lang, coins: state.coins, found: state.found, best_score: state.bestScore||0,
+      unlocked_stage: state.unlockedStage||1
     };
     const { data: created, error } = await sb.from('players').insert(insertRow).select().maybeSingle();
     if(error) throw error;
@@ -232,12 +235,14 @@ async function hydratePlayer(uid, defaults){
     state.coins = row.coins!=null ? row.coins : state.coins;
     state.found = row.found || state.found;
     state.bestScore = row.best_score || 0;
+    state.unlockedStage = row.unlocked_stage || state.unlockedStage || 1;
     try{
       localStorage.setItem('mmt:lang', state.lang);
       localStorage.setItem('mmt:coins', String(state.coins));
       localStorage.setItem('mmt:found', JSON.stringify(state.found));
       localStorage.setItem('mmt:name', state.name);
       localStorage.setItem('mmt:city', state.city);
+      localStorage.setItem('mmt:unlockedStage', String(state.unlockedStage));
     }catch(e){}
   }
 }
@@ -336,12 +341,13 @@ async function logout(){
   teardownDuelChannel();
   state.playerId = null; state.coins = 1240; state.found = []; state.name = 'Ойыншы'; state.city = ''; state.email='';
   state.bestScore = 0; state.leaderboard = null; state.authMode='login'; state.authError=''; state.authInfo='';
-  state.friends = []; state.incomingDuelInvite=null; state.myFriendCode=null;
+  state.friends = []; state.incomingDuelInvite=null; state.myFriendCode=null; state.unlockedStage=1;
   try{
     localStorage.removeItem('mmt:coins');
     localStorage.removeItem('mmt:found');
     localStorage.removeItem('mmt:name');
     localStorage.removeItem('mmt:city');
+    localStorage.removeItem('mmt:unlockedStage');
   }catch(e){}
   setState({screen:'auth'});
 }
@@ -852,7 +858,10 @@ async function submitSettings(e){
 }
 
 function setState(patch){ Object.assign(state, patch); render(); }
-function lvl(id){ return LEVELS.find(l=>l.id===id) || LEVELS[0]; }
+function lvl(id){
+  if(id==='stage') return {id:'stage', pairs:STAGE_PAIRS, cols:STAGE_COLS, seconds:STAGE_SECONDS, reward:STAGE_REWARD, g1:'#5AA184', g2:'#2E8365'};
+  return LEVELS.find(l=>l.id===id) || LEVELS[0];
+}
 
 let toastTimer = null;
 function toast(msg){
@@ -877,12 +886,37 @@ function toast(msg){
 
 function start(id){
   const L = lvl(id);
-  const source = (GAME_ITEMS && GAME_ITEMS.length) ? GAME_ITEMS : ITEMS;
-  const pairs = Math.max(1, Math.min(L.pairs, source.length));
-  const pool = source.slice().sort(()=>Math.random()-0.5).slice(0,pairs);
+  const pairs = Math.max(1, Math.min(L.pairs, ITEMS.length));
+  const pool = ITEMS.slice().sort(()=>Math.random()-0.5).slice(0,pairs);
   const deck = pool.concat(pool).map((m,i)=>({key:m.id+'-'+i,m})).sort(()=>Math.random()-0.5);
+  state.currentStage = null;
   setState({screen:'game',levelId:id,cards:deck,flipped:[],matched:[],justMatched:[],
     moves:0,left:L.seconds,elapsed:0,sheet:null,score:0,locked:false});
+}
+
+const STAGE_PAIRS = 6;
+const STAGE_SECONDS = 90;
+const STAGE_REWARD = 150;
+const STAGE_COLS = 3;
+
+function totalStages(){
+  return Math.max(1, Math.ceil(ITEMS.length / STAGE_PAIRS));
+}
+
+function stageItems(stageIndex){
+  const from = (stageIndex-1)*STAGE_PAIRS;
+  let slice = ITEMS.slice(from, from+STAGE_PAIRS);
+  if(!slice.length) slice = ITEMS.slice(0, STAGE_PAIRS);
+  return slice;
+}
+
+function startStage(stageIndex){
+  if(stageIndex > (state.unlockedStage||1)) return;
+  const pool = stageItems(stageIndex);
+  const deck = pool.concat(pool).map((m,i)=>({key:m.id+'-'+i,m})).sort(()=>Math.random()-0.5);
+  state.currentStage = stageIndex;
+  setState({screen:'game',levelId:'stage',cards:deck,flipped:[],matched:[],justMatched:[],
+    moves:0,left:STAGE_SECONDS,elapsed:0,sheet:null,score:0,locked:false});
 }
 
 function showSheet(m, points){
@@ -964,7 +998,12 @@ function closeSheet(){
     const coins = s.coins + L.reward;
     const finalScore = s.score+bonus;
     state.bestScore = Math.max(state.bestScore||0, finalScore);
-    persist({coins});
+    const persistPatch = {coins};
+    if(s.levelId==='stage' && s.currentStage && s.currentStage>=(s.unlockedStage||1)){
+      state.unlockedStage = s.currentStage+1;
+      persistPatch.unlockedStage = state.unlockedStage;
+    }
+    persist(persistPatch);
     setState({sheet:null,screen:'victory',score:finalScore,stars,earned:L.reward,coins});
   } else {
     state.sheet = null;
@@ -974,7 +1013,8 @@ function closeSheet(){
 function doShare(){
   const s = state, t = STR[s.lang];
   const L = lvl(s.levelId);
-  const text = t.appName+' — '+t[L.id]+': '+s.score+' '+t.score.toLowerCase();
+  const levelLabel = s.levelId==='stage' ? (s.lang==='kz'?(s.currentStage||1)+'-кезең':'Этап '+(s.currentStage||1)) : t[L.id];
+  const text = t.appName+' — '+levelLabel+': '+s.score+' '+t.score.toLowerCase();
   const done = ()=>toast(t.shared);
   const copy = ()=>{
     try{
@@ -1037,72 +1077,20 @@ function mapItemRow(r){
     fact:{kz:r.fact_kz, ru:r.fact_ru||r.fact_kz} };
 }
 
-let CATEGORIES = [{id:null, key:'mosques', name:{kz:'Мешіттер',ru:'Мечети'}}];
-let GAME_ITEMS = ITEMS;
-
-async function loadCategories(){
-  if(!sb) return;
-  try{
-    const { data, error } = await sb.from('categories').select('*').order('sort_order',{ascending:true});
-    if(error) throw error;
-    if(data && data.length){
-      CATEGORIES = data.map(c=>({id:c.id, key:c.key, name:{kz:c.name_kz, ru:c.name_ru}}));
-    }
-  }catch(e){
-    console.warn('Categories fetch failed, using built-in set:', e.message||e);
-  }
-}
-const categoriesReady = loadCategories();
-
 async function loadDefaultItems(){
   if(!sb) return;
   try{
-    await categoriesReady;
-    const defaultCat = CATEGORIES.find(c=>c.key==='mosques') || CATEGORIES[0];
-    let q = sb.from('game_items').select('*').order('sort_order',{ascending:true}).order('created_at',{ascending:true});
-    if(defaultCat && defaultCat.id) q = q.eq('category_id', defaultCat.id);
-    const { data, error } = await q;
+    const { data, error } = await sb.from('game_items').select('*')
+      .order('sort_order',{ascending:true}).order('created_at',{ascending:true});
     if(error) throw error;
-    if(data && data.length){ ITEMS = data.map(mapItemRow); GAME_ITEMS = ITEMS; }
+    if(data && data.length){ ITEMS = data.map(mapItemRow); }
   }catch(e){
     console.warn('Items fetch failed, using built-in set:', e.message||e);
   }
 }
 const mosquesReady = loadDefaultItems();
 
-async function loadCategoryItems(cat){
-  if(!sb || !cat || !cat.id){ GAME_ITEMS = ITEMS; return; }
-  try{
-    const { data, error } = await sb.from('game_items').select('*').eq('category_id', cat.id)
-      .order('sort_order',{ascending:true}).order('created_at',{ascending:true});
-    if(error) throw error;
-    GAME_ITEMS = (data && data.length) ? data.map(mapItemRow) : [];
-  }catch(e){
-    console.warn('Category items fetch failed:', e.message||e);
-    GAME_ITEMS = [];
-  }
-}
-
-async function chooseCategory(catId){
-  const cat = CATEGORIES.find(c => String(c.id)===String(catId) || c.key===catId);
-  state.categoryId = catId;
-  state.categoryName = cat ? cat.name[state.lang] : '';
-  state.categoriesLoading = true;
-  render();
-  await loadCategoryItems(cat);
-  state.categoriesLoading = false;
-  setState({screen:'levels'});
-}
-
-function goLevels(){
-  if(state.categoryId && GAME_ITEMS && GAME_ITEMS.length){
-    setState({screen:'levels'});
-  } else {
-    setState({screen:'categories'});
-  }
-}
-
-function goCategories(){ setState({screen:'categories'}); }
+function goLevels(){ setState({screen:'levels'}); }
 
 function mm(n){ return Math.floor(n/60)+':'+String(n%60).padStart(2,'0'); }
 function initials(n){ const w=n.trim().split(/\s+/); return (w.length>1? w[0][0]+w[1][0] : n.slice(0,2)).toUpperCase(); }
@@ -1198,30 +1186,9 @@ function screenHome(t,s){
   </div>`;
 }
 
-function screenCategories(t,s){
-  const cats = CATEGORIES;
-  const rows = cats.map(c=>`
-    <div onclick="chooseCategory('${c.id||c.key}')" data-hover style="position:relative;display:flex;align-items:center;gap:14px;padding:16px;border-radius:24px;background:var(--paper);border:1px solid var(--line);cursor:pointer;margin-bottom:10px;box-shadow:0 6px 18px -12px rgba(8,37,28,.4)">
-    <div style="width:52px;height:52px;border-radius:19px;display:grid;place-items:center;flex:none;background:linear-gradient(158deg,#1B6B50,#0E3B2E);box-shadow:0 12px 22px -10px rgba(14,59,46,.6)">${svg.mosqueThin}</div>
-    <div style="flex:1;min-width:0"><div style="font-family:var(--fh);font-size:20px;line-height:1.1">${esc(c.name[s.lang])}</div></div>
-    ${svg.arrow.replaceAll('{{s}}','18').replace('{{c}}','#9AC7B3')}
-    </div>`).join('');
-  return `<div class="sc" style="position:absolute;inset:0;overflow-y:auto;padding:24px 0 40px;animation:fade .28s ease">
-  <div style="display:flex;align-items:center;gap:12px;padding:4px 20px 6px">
-  <div onclick="goHome()" data-hover style="width:38px;height:38px;border-radius:13px;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;cursor:pointer;color:var(--g8)">${svg.back}</div>
-  <div style="flex:1">
-  <div style="font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--mut)">${s.lang==='kz'?'1-қадам':'Шаг 1'}</div>
-  <h3 style="font-size:26px;text-transform:uppercase;margin-top:2px">${s.lang==='kz'?'Санатты таңда':'Выбери категорию'}</h3></div></div>
-  <div style="padding:14px 18px 0">
-  ${s.categoriesLoading ? `<div style="text-align:center;padding:30px 0;color:var(--mut);font-size:13px">${s.lang==='kz'?'Жүктелуде…':'Загрузка…'}</div>` : rows}
-  </div>
-  </div>`;
-}
-
 function screenLevels(t,s){
-  const source = (GAME_ITEMS && GAME_ITEMS.length) ? GAME_ITEMS : ITEMS;
   const cards = LEVELS.map(l=>{
-    const pairs = Math.max(1, Math.min(l.pairs, source.length));
+    const pairs = Math.max(1, Math.min(l.pairs, ITEMS.length));
     let sh=[]; const rows=Math.ceil(pairs*2/l.cols);
     for(let r=0;r<rows;r++) for(let c=0;c<l.cols;c++) sh.push((c*11)+'px '+(r*11)+'px 0 0 rgba(255,255,255,.85)');
     const glyph = 'position:relative;width:7px;height:7px;border-radius:2px;background:transparent;transform:translate(-'+((l.cols-1)*11/2)+'px,-'+((rows-1)*11/2)+'px);box-shadow:'+sh.join(',');
@@ -1248,15 +1215,37 @@ function screenLevels(t,s){
   <div style="display:flex;align-items:center;gap:12px;padding:4px 20px 6px">
   <div onclick="goHome()" data-hover style="width:38px;height:38px;border-radius:13px;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;cursor:pointer;color:var(--g8)">${svg.back}</div>
   <div style="flex:1">
-  <div style="display:flex;align-items:center;gap:8px">
   <span style="font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--mut)">${esc(t.step1)}</span>
-  ${s.categoryName?`<span onclick="goCategories()" style="font-size:10px;letter-spacing:.05em;color:var(--g6);font-weight:700;cursor:pointer;text-decoration:underline">· ${esc(s.categoryName)}</span>`:''}
-  </div>
   <h3 style="font-size:26px;text-transform:uppercase;margin-top:2px">${esc(t.chooseLevel)}</h3></div></div>
   <div style="display:flex;flex-direction:column;gap:14px;padding:14px 18px 0">${cards}</div>
   <div style="margin:18px 18px 0;padding:15px 17px;border-radius:22px;background:var(--paper);border:1px solid var(--line);display:flex;align-items:center;gap:13px">
   <div style="width:38px;height:38px;border-radius:13px;background:var(--gold1);border:1px solid rgba(201,162,39,.3);display:grid;place-items:center;color:#8A6E10;flex:none">${svg.tip}</div>
   <p style="margin:0;font-size:12px;line-height:1.55;color:var(--mut);text-wrap:pretty">${esc(t.levelTip)}</p></div>
+  ${screenStages(t,s)}
+  </div>`;
+}
+
+function screenStages(t,s){
+  const stages = totalStages();
+  const unlocked = s.unlockedStage || 1;
+  const doneIcon = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l5 5 10-11"/></svg>';
+  const tiles = Array.from({length:stages}, (_,i)=>i+1).map(n=>{
+    const isLocked = n > unlocked;
+    const isDone = n < unlocked;
+    const bg = isLocked ? 'var(--g2)' : (isDone ? 'linear-gradient(158deg,#5AA184,#2E8365)' : 'linear-gradient(158deg,#E7C765,#C9A227)');
+    const fg = isLocked ? 'var(--mut)' : (isDone ? '#fff' : '#3A2D06');
+    const inner = isLocked ? svg.lock.replaceAll('{{s}}','20') : (isDone ? doneIcon : `<span style="font-family:var(--fh);font-size:21px;color:${fg}">${n}</span>`);
+    return `<div onclick="${isLocked?'':'startStage('+n+')'}" data-hover style="position:relative;aspect-ratio:1/1;border-radius:18px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:${isLocked?'default':'pointer'};background:${bg};${isLocked?'':'box-shadow:0 10px 20px -10px rgba(8,37,28,.4)'}">
+    <div style="color:${fg}">${inner}</div>
+    <span style="font-size:8px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:${fg}">${isLocked?(s.lang==='kz'?'жабық':'закрыт'):(isDone?(s.lang==='kz'?'өтті':'пройден'):(s.lang==='kz'?n+'-кезең':'Этап '+n))}</span>
+    </div>`;
+  }).join('');
+  return `<div style="margin:26px 18px 0">
+  <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px">
+  <h3 style="font-size:22px;text-transform:uppercase">${s.lang==='kz'?'Кезеңдер':'Этапы'}</h3>
+  <span style="font-size:11.5px;font-weight:700;color:var(--mut)">${unlocked>stages?stages:unlocked}/${stages}</span>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:9px">${tiles}</div>
   </div>`;
 }
 
@@ -1264,6 +1253,9 @@ function screenGame(t,s){
   const L = lvl(s.levelId);
   const totalPairs = s.cards.length/2;
   const rows = Math.ceil(s.cards.length/L.cols);
+  const levelTitle = s.levelId==='stage'
+    ? (s.lang==='kz' ? (s.currentStage||1)+'-кезең' : 'Этап '+(s.currentStage||1))
+    : t[L.id];
   const cards = s.cards.map((c,i)=>{
     const isFlipped = s.flipped.indexOf(i)>-1 || s.matched.indexOf(i)>-1;
     const isMatched = s.matched.indexOf(i)>-1;
@@ -1287,7 +1279,7 @@ function screenGame(t,s){
   <div onclick="quitGame()" data-hover style="width:36px;height:36px;border-radius:12px;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;cursor:pointer;color:var(--g8);flex:none">${svg.close}</div>
   <div style="flex:1;display:flex;align-items:center;gap:7px;height:36px;padding:0 12px;border-radius:12px;background:linear-gradient(150deg,#1B6B50,#0E3B2E);color:#fff;box-shadow:0 8px 18px -10px rgba(14,59,46,.6)">
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#E7C765" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-8.2M20 21v-8.2M4.2 12.8C4.2 8.4 7.7 4.9 12 4.9s7.8 3.5 7.8 7.9M1.8 21h20.4"/></svg>
-  <span style="font-family:var(--fh);font-size:16px;text-transform:uppercase;letter-spacing:.04em">${esc(t[L.id])}</span>
+  <span style="font-family:var(--fh);font-size:16px;text-transform:uppercase;letter-spacing:.04em">${esc(levelTitle)}</span>
   <span id="pairsLabel" style="margin-left:auto;font-size:11px;font-weight:800;color:rgba(255,255,255,.6)">${matchedPairs}/${totalPairs}</span></div></div>
   <div style="display:flex;gap:8px;margin-top:11px">
   <div id="timerPill" class="timerPill${lowTime?' low':''}">
@@ -1555,7 +1547,7 @@ function overlayFriendsModal(t,s){
 }
 
 function overlayNav(t,s){
-  const showNav = ['home','categories','levels','board','profile'].indexOf(s.screen)>-1;
+  const showNav = ['home','levels','board','profile'].indexOf(s.screen)>-1;
   if(!showNav) return '';
   const accent = '#0E3B2E';
   const nav = (on)=> 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;height:58px;border-radius:20px;cursor:pointer;transition:background .18s,color .18s;'+
@@ -1563,7 +1555,7 @@ function overlayNav(t,s){
   return `<div style="position:absolute;left:0;right:0;bottom:0;z-index:50;padding:0 14px 12px;pointer-events:none">
   <div style="pointer-events:auto;height:70px;border-radius:26px;background:rgba(255,255,255,.82);backdrop-filter:blur(18px) saturate(1.4);border:1px solid rgba(255,255,255,.75);box-shadow:0 -2px 0 rgba(8,37,28,.03),0 18px 38px -16px rgba(8,37,28,.42);display:grid;grid-template-columns:repeat(4,1fr);align-items:center;padding:0 6px">
   <div onclick="goHome()" style="${nav(s.screen==='home')}">${svg.home.replaceAll('{{s}}','21')}<span style="font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase">${esc(t.home)}</span></div>
-  <div onclick="goLevels()" style="${nav(s.screen==='levels'||s.screen==='game'||s.screen==='categories')}">${svg.games}<span style="font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase">${esc(t.games)}</span></div>
+  <div onclick="goLevels()" style="${nav(s.screen==='levels'||s.screen==='game')}">${svg.games}<span style="font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase">${esc(t.games)}</span></div>
   <div onclick="goBoard()" style="${nav(s.screen==='board')}">${svg.rating}<span style="font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase">${esc(t.rating)}</span></div>
   <div onclick="goProfile()" style="${nav(s.screen==='profile')}">${svg.profile}<span style="font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase">${esc(t.profile)}</span></div>
   </div></div>`;
@@ -1785,7 +1777,6 @@ function render(){
   if(s.screen==='splash') body = screenSplash(t);
   else if(s.screen==='auth') body = screenAuth(t,s);
   else if(s.screen==='home') body = screenHome(t,s);
-  else if(s.screen==='categories') body = screenCategories(t,s);
   else if(s.screen==='levels') body = screenLevels(t,s);
   else if(s.screen==='game') body = screenGame(t,s);
   else if(s.screen==='victory') body = screenVictory(t,s);
