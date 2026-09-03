@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Мешіттерді тап</title>
+<title>ДІН МЕН ДӘСТҮР</title>
 <style>
 :root{
   --cream:#F7F4EC;--paper:#FFFFFF;
@@ -113,7 +113,7 @@ let MOSQUES = [
 ];
 
 const STR = {
-  kz:{appName:'Мешіттерді тап',splashTag:'Қазақстанның мешіттерін жаттап, жұптарын тап',loading:'Жүктелуде',
+  kz:{appName:'ДІН МЕН ДӘСТҮР',splashTag:'Қазақстанның мешіттерін жаттап, жұптарын тап',loading:'Жүктелуде',
     greeting:'Қайырлы күн',heroKicker:'Есте сақтау ойыны',heroDesc:'Карточкаларды аш, бірдей мешіттерді жұптап тап және әр жұп туралы жаңа дүние біл.',
     start:'Ойынды бастау',levels:'Деңгейлер',seeAll:'Барлығы',collection:'Жинақ',rank:'Орын',
     collectionTitle:'Мешіт жинағы',step1:'1-қадам',chooseLevel:'Деңгейді таңда',
@@ -129,7 +129,7 @@ const STR = {
     gamesPlayed:'Ойын',bestTime:'Үздік уақыт',mosquesFound:'Табылған',
     invite:'Дос шақыру',inviteDesc:'Әр досқа 200 монета',inviteBtn:'Шақыру',language:'Тіл',
     shared:'Нәтиже көшірілді — досыңмен бөліс!'},
-  ru:{appName:'Найди мечети',splashTag:'Запоминай мечети Казахстана и находи их пары',loading:'Загрузка',
+  ru:{appName:'ДІН МЕН ДӘСТҮР',splashTag:'Запоминай мечети Казахстана и находи их пары',loading:'Загрузка',
     greeting:'Добрый день',heroKicker:'Игра на память',heroDesc:'Открывай карточки, находи пары одинаковых мечетей и узнавай новое о каждой из них.',
     start:'Начать игру',levels:'Уровни',seeAll:'Все',collection:'Коллекция',rank:'Место',
     collectionTitle:'Коллекция мечетей',step1:'Шаг 1',chooseLevel:'Выбери уровень',
@@ -449,10 +449,10 @@ async function inviteFriend(){
     const { error } = await sb.from('friend_requests').insert({ from_id: state.playerId, invite_token: token });
     if(error) throw error;
     const link = location.origin + location.pathname + '?invite=' + token;
-    const text = (state.lang==='kz' ? 'Маған "Мешіттерді тап" ойынында дос бол: ' : 'Стань моим другом в игре «Найди мечети»: ') + link;
+    const text = (state.lang==='kz' ? 'Маған "ДІН МЕН ДӘСТҮР" ойынында дос бол: ' : 'Стань моим другом в игре «ДІН МЕН ДӘСТҮР»: ') + link;
     const finish = (msg)=>{ state.inviteLoading=false; state.inviteInfo=msg; render(); };
     try{
-      if(navigator.share){ await navigator.share({title:'Мешіттерді тап', text, url:link}); finish(''); return; }
+      if(navigator.share){ await navigator.share({title:'ДІН МЕН ДӘСТҮР', text, url:link}); finish(''); return; }
     }catch(e){}
     try{
       if(navigator.clipboard && navigator.clipboard.writeText){
