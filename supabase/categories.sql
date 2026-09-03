@@ -1,4 +1,4 @@
--- ДІН МЕН ДӘСТҮР — multi-category content.
+-- DIN MEN DASTUR — multi-category content.
 -- Run this once in the Supabase SQL Editor, AFTER schema.sql, mosques.sql, duels.sql, friends.sql.
 --
 -- This renames the existing `mosques` table to the more general
