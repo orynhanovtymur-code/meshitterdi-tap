@@ -509,15 +509,21 @@ async function fetchFriends(){
   state.friendsLoading = true; render();
   try{
     const { data, error } = await sb.from('friend_requests')
-      .select('from_id,to_id')
+      .select('id,from_id,to_id')
       .eq('status','accepted')
       .or('from_id.eq.'+state.playerId+',to_id.eq.'+state.playerId);
     if(error) throw error;
-    const otherIds = (data||[]).map(r=> r.from_id===state.playerId ? r.to_id : r.from_id).filter(Boolean);
+    const rows = data || [];
+    const friendshipIdByOther = {};
+    const otherIds = rows.map(r=>{
+      const other = r.from_id===state.playerId ? r.to_id : r.from_id;
+      if(other) friendshipIdByOther[other] = r.id;
+      return other;
+    }).filter(Boolean);
     let friends = [];
     if(otherIds.length){
       const { data: players } = await sb.from('players').select('id,name,city').in('id', otherIds);
-      friends = (players||[]).map(p=>({id:p.id, name:p.name||'Ойыншы', city:p.city||''}));
+      friends = (players||[]).map(p=>({id:p.id, name:p.name||'Ойыншы', city:p.city||'', friendshipId:friendshipIdByOther[p.id]}));
     }
     state.friends = friends;
   }catch(e){
@@ -526,6 +532,24 @@ async function fetchFriends(){
   }
   state.friendsLoading = false;
   render();
+}
+
+function removeFriendById(friendshipId){
+  if(!friendshipId) return;
+  const ok = window.confirm(state.lang==='kz' ? 'Досты тізімнен өшіру керек пе?' : 'Удалить друга из списка?');
+  if(!ok) return;
+  removeFriend(friendshipId);
+}
+
+async function removeFriend(friendshipId){
+  try{
+    const { error } = await sb.from('friend_requests').delete().eq('id', friendshipId);
+    if(error) throw error;
+    toast(state.lang==='kz' ? 'Дос өшірілді.' : 'Друг удалён.');
+    await fetchFriends();
+  }catch(e){
+    toast(e.message || String(e));
+  }
 }
 
 function goDuelMenu(){
@@ -959,7 +983,7 @@ function doShare(){
 function toggleLang(){ const lang = state.lang==='kz'?'ru':'kz'; persist({lang}); setState({lang}); }
 function goHome(){ setState({screen:'home'}); }
 function goBoard(){ setState({screen:'board'}); fetchLeaderboard(); }
-function goProfile(){ setState({screen:'profile'}); }
+function goProfile(){ setState({screen:'profile'}); fetchFriends(); }
 function quitGame(){ setState({screen:'levels',sheet:null}); }
 function replay(){ start(state.levelId); }
 function nextLevel(){
@@ -1397,6 +1421,19 @@ function screenBoard(t,s){
 }
 
 function screenProfile(t,s){
+  const friendRows = (s.friends||[]).map(f=>`
+    <div style="display:flex;align-items:center;gap:11px;padding:11px 13px;border-radius:18px;background:var(--paper);border:1px solid var(--line);margin-bottom:7px">
+    <div style="width:36px;height:36px;border-radius:13px;background:var(--g1);border:1px solid var(--g2);display:grid;place-items:center;font-family:var(--fh);font-size:13px;color:var(--g7);flex:none">${esc(initials(f.name))}</div>
+    <div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</div>
+    <div style="font-size:11px;color:var(--mut);margin-top:1px">${esc(f.city)}</div></div>
+    <button onclick="removeFriendById('${f.friendshipId}')" data-hover style="width:32px;height:32px;border-radius:11px;background:var(--danger-bg,#FDECEC);border:1px solid rgba(190,60,60,.25);display:grid;place-items:center;cursor:pointer;color:#A03232;flex:none">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </div>`).join('');
+  const friendsListHtml = `<div style="margin:12px 18px 0;padding:14px;border-radius:22px;background:var(--g1);border:1px solid var(--g2)">
+    <div style="font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin-bottom:10px;padding:0 2px">${s.lang==='kz'?'Достарым':'Мои друзья'} ${s.friends&&s.friends.length? '('+s.friends.length+')':''}</div>
+    ${s.friendsLoading ? `<div style="text-align:center;padding:14px 0;color:var(--mut);font-size:12.5px">${s.lang==='kz'?'Жүктелуде…':'Загрузка…'}</div>`
+      : (s.friends&&s.friends.length ? friendRows : `<div style="text-align:center;padding:14px 4px;color:var(--mut);font-size:12.5px;line-height:1.5">${s.lang==='kz'?'Әзірге достарың жоқ.':'Пока нет друзей.'}</div>`)}
+    </div>`;
   const coll = ITEMS.map(m=>{
     const has = s.found.indexOf(m.id)>-1;
     return `<div style="position:relative;aspect-ratio:1/1;border-radius:18px;overflow:hidden;background:var(--g2);border:1px solid var(--line)">
@@ -1443,6 +1480,7 @@ function screenProfile(t,s){
   <span style="font-family:var(--fh);font-size:13px;color:#fff;text-transform:uppercase;letter-spacing:.04em">${s.inviteLoading?'…':esc(t.inviteBtn)}</span></div>
   <div onclick="goAddFriend()" data-hover style="height:38px;padding:0 13px;border-radius:13px;background:var(--gold1);border:1px solid rgba(201,162,39,.32);display:grid;place-items:center;cursor:pointer;flex:none">
   <span style="font-family:var(--fh);font-size:13px;color:#8A6E10;text-transform:uppercase;letter-spacing:.04em">${s.lang==='kz'?'Қосылу':'Ввести код'}</span></div></div>
+  ${friendsListHtml}
   <div style="display:flex;align-items:baseline;justify-content:space-between;padding:24px 22px 12px">
   <h3 style="font-size:22px;text-transform:uppercase">${esc(t.collectionTitle)}</h3>
   <span style="font-size:11.5px;font-weight:700;color:var(--mut)">${s.found.length}/${ITEMS.length}</span></div>
