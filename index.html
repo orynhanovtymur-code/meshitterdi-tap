@@ -123,9 +123,9 @@ const STR = {
     easy:'Оңай',medium:'Орташа',hard:'Қиын',
     easyDesc:'Алғашқы қадамға арналған жеңіл деңгей.',mediumDesc:'Зейін мен есте сақтауды сынайды.',hardDesc:'Уақыт шектеулі. Әр жұпқа ×2 ұпай.',
     foundPair:'Жұп табылды',continueBtn:'Жалғастыру',
-    victoryTitle:'Керемет!',victoryDescT:'{n} жұпты тауып шықтың',
-    score:'Ұпай',time:'Уақыт',moves:'Қадам',coins:'Монета',
-    nextLevel:'Келесі деңгей',replay:'Қайта ойнау',share:'Бөлісу',
+    victoryTitle:'Керемет!',victoryDescT:'{n} жұпты тауып шықтың',timeUpTitle:'Уақыт бітті!',
+    score:'Ұпай',time:'Уақыт',moves:'Қадам',coins:'Монета',newCardUnlocked:'Жаңа карточка ашылды',
+    nextLevel:'Келесі кезең',replay:'Қайта ойнау',share:'Бөлісу',
     home:'Басты',games:'Ойнау',rating:'Рейтинг',profile:'Профиль',navColl:'Жинақ',
     globalTop:'Үздік ойыншылар',levelTag:'Деңгей',xpToNext:'Келесі деңгейге',
     gamesPlayed:'Ойналған ойын',bestTime:'Үздік нәтиже',mosquesFound:'Жиналған карточка',
@@ -139,9 +139,9 @@ const STR = {
     easy:'Легко',medium:'Средне',hard:'Сложно',
     easyDesc:'Лёгкий уровень для первого шага.',mediumDesc:'Проверяет внимание и память.',hardDesc:'Время ограничено. Каждая пара ×2 очков.',
     foundPair:'Пара найдена',continueBtn:'Продолжить',
-    victoryTitle:'Отлично!',victoryDescT:'Ты собрал {n} пар',
-    score:'Очки',time:'Время',moves:'Ходы',coins:'Монеты',
-    nextLevel:'Следующий уровень',replay:'Играть заново',share:'Поделиться',
+    victoryTitle:'Отлично!',victoryDescT:'Ты собрал {n} пар',timeUpTitle:'Время вышло!',
+    score:'Очки',time:'Время',moves:'Ходы',coins:'Монеты',newCardUnlocked:'Новая карточка открыта',
+    nextLevel:'Следующий этап',replay:'Играть заново',share:'Поделиться',
     home:'Главная',games:'Играть',rating:'Рейтинг',profile:'Профиль',navColl:'Коллекция',
     globalTop:'Лучшие игроки',levelTag:'Уровень',xpToNext:'До след. уровня',
     gamesPlayed:'Сыграно игр',bestTime:'Лучший результат',mosquesFound:'Собрано карточек',
@@ -193,7 +193,7 @@ let state = { screen:'splash', lang:'kz', coins:1240, found:[], name:'Ойынш
   addFriendError:'', addFriendInfo:'', addFriendLoading:false,
   levelId:'easy', pendingLevelId:'easy', cards:[], flipped:[], matched:[], justMatched:[],
   moves:0, left:90, elapsed:0, sheet:null, score:0, earned:0, xpGain:0, stars:3, toast:null, locked:false,
-  firstNewCardThisGame:null };
+  firstNewCardThisGame:null, resultFinalized:false };
 
 try{
   state.lang = localStorage.getItem('mmt:lang') || 'kz';
@@ -1033,6 +1033,7 @@ function start(id){
   const deck = dealDeck(ITEMS, L.pairs);
   state.currentStage = null;
   state.firstNewCardThisGame = null;
+  state.resultFinalized = false;
   setState({screen:'game',levelId:id,cards:deck,flipped:[],matched:[],justMatched:[],
     moves:0,left:L.seconds,elapsed:0,sheet:null,score:0,locked:false});
 }
@@ -1067,6 +1068,7 @@ function startStage(stageIndex){
   const deck = dealDeck(pool, pool.length);
   state.currentStage = stageIndex;
   state.firstNewCardThisGame = null;
+  state.resultFinalized = false;
   setState({screen:'game',levelId:'stage',cards:deck,flipped:[],matched:[],justMatched:[],
     moves:0,left:STAGE_SECONDS,elapsed:0,sheet:null,score:0,locked:false});
 }
@@ -1145,61 +1147,80 @@ function flip(i){
   }
 }
 
+// Ends the current round exactly once and writes its result to the
+// player's real, persisted stats. Guarded by state.resultFinalized so
+// a double-tap, a stray timer tick, or any other re-entry can never
+// award coins/XP/stage-unlock twice for the same round.
+function finalizeRound(completed){
+  if(state.resultFinalized) return;
+  state.resultFinalized = true;
+  const s = state;
+  const beforeUnlocked = computeAchievements(state).filter(a=>a.unlocked).map(a=>a.id);
+  const L = lvl(s.levelId);
+  const totalPairs = s.cards.length/2;
+  const matchedPairs = s.matched.length/2;
+  let stars;
+  if(completed){
+    stars = s.moves <= totalPairs*1.45 ? 3 : (s.moves <= totalPairs*2.2 ? 2 : 1);
+  } else {
+    const ratio = totalPairs ? matchedPairs/totalPairs : 0;
+    stars = ratio>=0.66 ? 2 : (ratio>=0.33 ? 1 : 0);
+  }
+  const bonus = s.left*5 + stars*80;
+  const completionReward = completed ? L.reward : 0;
+  const coins = s.coins + completionReward;
+  const finalScore = s.score+bonus;
+  state.bestScore = Math.max(state.bestScore||0, finalScore);
+  state.gamesPlayed = (state.gamesPlayed||0) + 1;
+  if(completed && (state.bestTimeSeconds==null || s.elapsed < state.bestTimeSeconds)){
+    state.bestTimeSeconds = s.elapsed;
+  }
+  if(completed && s.moves === totalPairs) state.hasFlawlessWin = true;
+  if(completed && s.elapsed < 60) state.hasFastWin = true;
+
+  const today = todayDateStr();
+  if(state.lastPlayedDate !== today){
+    const y = new Date(); y.setDate(y.getDate()-1);
+    const yesterday = y.getFullYear()+'-'+String(y.getMonth()+1).padStart(2,'0')+'-'+String(y.getDate()).padStart(2,'0');
+    state.currentStreak = (state.lastPlayedDate===yesterday) ? (state.currentStreak||0)+1 : 1;
+    state.lastPlayedDate = today;
+  }
+
+  const week = isoWeekLabel(new Date());
+  if(state.weeklyScoreWeek !== week){ state.weeklyScoreWeek = week; state.weeklyScore = 0; }
+  state.weeklyScore = Math.max(state.weeklyScore||0, finalScore);
+
+  const xpGain = completionReward;
+  state.xp = (state.xp||0) + xpGain;
+
+  const persistPatch = {
+    coins, gamesPlayed:state.gamesPlayed, bestTimeSeconds:state.bestTimeSeconds,
+    xp:state.xp, hasFlawlessWin:state.hasFlawlessWin, hasFastWin:state.hasFastWin,
+    currentStreak:state.currentStreak, lastPlayedDate:state.lastPlayedDate,
+    weeklyScore:state.weeklyScore, weeklyScoreWeek:state.weeklyScoreWeek
+  };
+  if(completed && s.levelId==='stage' && s.currentStage && s.currentStage>=(s.unlockedStage||1)){
+    state.unlockedStage = s.currentStage+1;
+    persistPatch.unlockedStage = state.unlockedStage;
+  }
+  persist(persistPatch);
+  if(completed) updateDailyChallenge({levelId:s.levelId, elapsed:s.elapsed, flawless:(s.moves===totalPairs), totalPairs});
+  setState({sheet:null,screen:'victory',score:finalScore,stars,earned:completionReward,coins,xpGain});
+  fetchMyRank();
+  const afterUnlocked = computeAchievements(state).filter(a=>a.unlocked);
+  const newlyUnlocked = afterUnlocked.filter(a=>beforeUnlocked.indexOf(a.id)===-1);
+  if(newlyUnlocked.length){
+    const names = newlyUnlocked.map(a=>a[state.lang==='kz'?'titleKz':'titleRu']).join(', ');
+    setTimeout(()=>toast((state.lang==='kz'?'Жаңа жетістік: ':'Новое достижение: ')+names), 900);
+  }
+}
+
 function closeSheet(){
   const s = state;
   const node = document.getElementById('sheetOverlay');
   if(node) node.remove();
   if(s.matched.length && s.matched.length===s.cards.length){
-    const beforeUnlocked = computeAchievements(state).filter(a=>a.unlocked).map(a=>a.id);
-    const L = lvl(s.levelId);
-    const totalPairs = s.cards.length/2;
-    const stars = s.moves <= totalPairs*1.45 ? 3 : (s.moves <= totalPairs*2.2 ? 2 : 1);
-    const bonus = s.left*5 + stars*80;
-    const coins = s.coins + L.reward;
-    const finalScore = s.score+bonus;
-    state.bestScore = Math.max(state.bestScore||0, finalScore);
-    state.gamesPlayed = (state.gamesPlayed||0) + 1;
-    if(state.bestTimeSeconds==null || s.elapsed < state.bestTimeSeconds){
-      state.bestTimeSeconds = s.elapsed;
-    }
-    if(s.moves === totalPairs) state.hasFlawlessWin = true;
-    if(s.elapsed < 60) state.hasFastWin = true;
-
-    const today = todayDateStr();
-    if(state.lastPlayedDate !== today){
-      const y = new Date(); y.setDate(y.getDate()-1);
-      const yesterday = y.getFullYear()+'-'+String(y.getMonth()+1).padStart(2,'0')+'-'+String(y.getDate()).padStart(2,'0');
-      state.currentStreak = (state.lastPlayedDate===yesterday) ? (state.currentStreak||0)+1 : 1;
-      state.lastPlayedDate = today;
-    }
-
-    const week = isoWeekLabel(new Date());
-    if(state.weeklyScoreWeek !== week){ state.weeklyScoreWeek = week; state.weeklyScore = 0; }
-    state.weeklyScore = Math.max(state.weeklyScore||0, finalScore);
-
-    const xpGain = L.reward;
-    state.xp = (state.xp||0) + xpGain;
-
-    const persistPatch = {
-      coins, gamesPlayed:state.gamesPlayed, bestTimeSeconds:state.bestTimeSeconds,
-      xp:state.xp, hasFlawlessWin:state.hasFlawlessWin, hasFastWin:state.hasFastWin,
-      currentStreak:state.currentStreak, lastPlayedDate:state.lastPlayedDate,
-      weeklyScore:state.weeklyScore, weeklyScoreWeek:state.weeklyScoreWeek
-    };
-    if(s.levelId==='stage' && s.currentStage && s.currentStage>=(s.unlockedStage||1)){
-      state.unlockedStage = s.currentStage+1;
-      persistPatch.unlockedStage = state.unlockedStage;
-    }
-    persist(persistPatch);
-    updateDailyChallenge({levelId:s.levelId, elapsed:s.elapsed, flawless:(s.moves===totalPairs), totalPairs});
-    setState({sheet:null,screen:'victory',score:finalScore,stars,earned:L.reward,coins,xpGain});
-    fetchMyRank();
-    const afterUnlocked = computeAchievements(state).filter(a=>a.unlocked);
-    const newlyUnlocked = afterUnlocked.filter(a=>beforeUnlocked.indexOf(a.id)===-1);
-    if(newlyUnlocked.length){
-      const names = newlyUnlocked.map(a=>a[state.lang==='kz'?'titleKz':'titleRu']).join(', ');
-      setTimeout(()=>toast((state.lang==='kz'?'Жаңа жетістік: ':'Новое достижение: ')+names), 900);
-    }
+    finalizeRound(true);
   } else {
     state.sheet = null;
   }
@@ -1231,10 +1252,22 @@ function goBoard(){ setState({screen:'board'}); fetchLeaderboard(); }
 function goProfile(){ setState({screen:'profile'}); fetchFriends(); }
 function goCollection(){ setState({screen:'collection'}); }
 function quitGame(){ setState({screen:'levels',sheet:null}); }
-function replay(){ start(state.levelId); }
-function nextLevel(){
-  const i = LEVELS.findIndex(l=>l.id===state.levelId);
-  start(LEVELS[Math.min(i+1,LEVELS.length-1)].id);
+function replay(){
+  if(state.levelId==='stage' && state.currentStage){ startStage(state.currentStage); }
+  else { start(state.levelId); }
+}
+function goNextStage(){
+  const total = totalStages();
+  const next = (state.currentStage||1) + 1;
+  if(next > total){
+    toast(state.lang==='kz' ? 'Бұл — соңғы кезең! Жаңа кезеңдер жақында қосылады.' : 'Это последний этап! Новые этапы скоро появятся.');
+    return;
+  }
+  if(next > (state.unlockedStage||1)){
+    explainLockedStage(next);
+    return;
+  }
+  startStage(next);
 }
 
 const svg = {
@@ -1701,15 +1734,20 @@ function overlaySheet(t,s){
 
 function screenVictory(t,s){
   const L = lvl(s.levelId);
-  const stars = s.stars || 3;
+  const stars = s.stars || 0;
+  const totalPairs = s.cards.length/2;
+  const matchedPairs = s.matched.length/2;
+  const completed = matchedPairs>=totalPairs;
   const resultStars = [0,1,2].map(i=>{
     const wrap = 'animation:pop .5s cubic-bezier(.2,.8,.2,1) '+(0.25+i*0.14)+'s both;'+(i===1?'transform:translateY(-8px)':'');
     return `<div style="${wrap}">${svg.star.replaceAll('{{s}}','30').replace('{{f}}',i<stars?'#C9A227':'none').replace('{{c}}',i<stars?'#C9A227':'rgba(255,255,255,.35)')}</div>`;
   }).join('');
-  const confetti = Array.from({length:20},(_,i)=>{
+  const confetti = completed ? Array.from({length:9},(_,i)=>{
     const cols=['#E7C765','#C9A227','#5AA184','#ffffff','#9AC7B3'];
-    return `<i style="position:absolute;top:-24px;left:${3+i*4.8}%;width:${5+(i%3)*3}px;height:${9+(i%4)*4}px;border-radius:2px;background:${cols[i%5]};opacity:0;animation:confetti ${2.4+(i%5)*.45}s cubic-bezier(.3,.5,.6,1) ${i*.075}s forwards"></i>`;
-  }).join('');
+    return `<i style="position:absolute;top:-24px;left:${8+i*10}%;width:${4+(i%3)*2}px;height:${8+(i%4)*3}px;border-radius:2px;background:${cols[i%5]};opacity:0;animation:confetti ${2.2+(i%5)*.4}s cubic-bezier(.3,.5,.6,1) ${i*.09}s forwards"></i>`;
+  }).join('') : '';
+  const factText = s.firstNewCardThisGame ? (s.firstNewCardThisGame.fact[s.lang]||'') : '';
+  const factShort = factText.length>84 ? factText.slice(0,81).trim()+'…' : factText;
   return `<div class="sc" style="position:absolute;inset:0;z-index:65;overflow-y:auto;background:linear-gradient(168deg,#1B6B50 0%,#0E3B2E 48%,#08251C 100%);animation:fade .3s ease">
   <div style="position:absolute;inset:0;opacity:.4;background:repeating-conic-gradient(from 22.5deg at 50% 22%,rgba(255,255,255,.055) 0deg 11deg,transparent 11deg 22.5deg)"></div>
   <div style="position:absolute;inset:0;overflow:hidden;pointer-events:none">${confetti}</div>
@@ -1717,29 +1755,32 @@ function screenVictory(t,s){
   <div style="position:relative;width:112px;height:112px;margin:0 auto;animation:pop .6s cubic-bezier(.2,.8,.2,1) both">
   <div style="position:absolute;inset:0;border-radius:36px;background:linear-gradient(150deg,#E7C765,#C9A227);box-shadow:0 22px 44px -14px rgba(201,162,39,.8),inset 0 2px 0 rgba(255,255,255,.5)"></div>
   <div style="position:absolute;inset:0;display:grid;place-items:center;color:#3A2D06">${svg.trophy}</div></div>
-  <h2 style="margin:24px 0 0;font-size:41px;color:#fff;text-transform:uppercase">${esc(t.victoryTitle)}</h2>
-  <p style="margin:9px 0 0;color:rgba(255,255,255,.6);font-size:13.5px;line-height:1.6">${esc(t.victoryDescT.replace('{n}',s.cards.length/2))}</p>
+  <h2 style="margin:24px 0 0;font-size:41px;color:#fff;text-transform:uppercase">${esc(completed?t.victoryTitle:t.timeUpTitle)}</h2>
+  <div style="margin-top:12px">
+  <div style="font-family:var(--fh);font-size:38px;color:#fff;line-height:1">${matchedPairs}<span style="color:rgba(255,255,255,.42);font-size:24px">/${totalPairs}</span></div>
+  <div style="font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.5);font-weight:800;margin-top:5px">${esc(t.foundPair)}</div>
+  </div>
   <div style="display:flex;justify-content:center;gap:9px;margin-top:22px">${resultStars}</div>
   <div style="margin-top:26px;padding:18px;border-radius:26px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(8px)">
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px 10px">
-  <div style="text-align:left"><div style="font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.45)">${esc(t.score)}</div><div style="font-family:var(--fh);font-size:30px;color:#E7C765;line-height:1.05;margin-top:3px">${s.score}</div></div>
   <div style="text-align:left"><div style="font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.45)">${esc(t.time)}</div><div style="font-family:var(--fh);font-size:30px;color:#fff;line-height:1.05;margin-top:3px">${mm(s.elapsed)}</div></div>
-  <div style="text-align:left"><div style="font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.45)">${esc(t.moves)}</div><div style="font-family:var(--fh);font-size:30px;color:#fff;line-height:1.05;margin-top:3px">${s.moves}</div></div>
-  <div style="text-align:left"><div style="font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.45)">${esc(t.coins)}</div><div style="font-family:var(--fh);font-size:30px;color:#fff;line-height:1.05;margin-top:3px">+${s.earned}</div></div>
+  <div style="text-align:left"><div style="font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.45)">${esc(t.coins)}</div><div style="font-family:var(--fh);font-size:30px;color:#E7C765;line-height:1.05;margin-top:3px">+${s.earned}</div></div>
   </div></div>
-  <div style="margin-top:12px;display:flex;justify-content:center;gap:16px">
-  <span style="display:flex;align-items:center;gap:6px;color:#E7C765;font-family:var(--fh);font-size:15px">+${s.earned} ${svg.coin}</span>
+  <div style="margin-top:12px;display:flex;justify-content:center">
   <span style="display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);font-family:var(--fh);font-size:15px">+${s.xpGain||0} XP</span>
   </div>
-  ${s.firstNewCardThisGame?`<div style="margin-top:18px;padding:16px;border-radius:22px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);text-align:left;display:flex;gap:12px;align-items:center">
+  ${s.firstNewCardThisGame?`<div style="margin-top:18px;padding:16px;border-radius:22px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);text-align:left">
+  <div style="font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:#E7C765;font-weight:800;margin-bottom:10px">${esc(t.newCardUnlocked)}</div>
+  <div style="display:flex;gap:12px;align-items:center">
   <div style="width:56px;height:56px;border-radius:16px;overflow:hidden;flex:none;background:var(--g2)"><div style="width:100%;height:100%;background-image:url('${s.firstNewCardThisGame.img}');background-size:cover;background-position:center"></div></div>
   <div style="min-width:0">
-  <div style="font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:#E7C765;font-weight:800">${s.lang==='kz'?'Жаңа карточка!':'Новая карточка!'}</div>
   <div style="font-family:var(--fh);font-size:16px;color:#fff;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.firstNewCardThisGame.name[s.lang])}</div>
   <div style="font-size:11px;color:rgba(255,255,255,.55);margin-top:1px">${esc(s.firstNewCardThisGame.city[s.lang])}</div>
-  </div></div>`:''}
+  </div></div>
+  ${factShort?`<p style="margin:10px 0 0;font-size:12px;line-height:1.55;color:rgba(255,255,255,.65);text-wrap:pretty">${esc(factShort)}</p>`:''}
+  </div>`:''}
   <div style="display:flex;flex-direction:column;gap:10px;margin-top:20px">
-  <div onclick="nextLevel()" data-hover style="height:56px;border-radius:19px;background:linear-gradient(150deg,#E7C765,#C9A227);display:flex;align-items:center;justify-content:center;gap:9px;cursor:pointer;box-shadow:0 16px 30px -12px rgba(201,162,39,.7),inset 0 1px 0 rgba(255,255,255,.45)">
+  <div onclick="goNextStage()" data-hover style="height:56px;border-radius:19px;background:linear-gradient(150deg,#E7C765,#C9A227);display:flex;align-items:center;justify-content:center;gap:9px;cursor:pointer;box-shadow:0 16px 30px -12px rgba(201,162,39,.7),inset 0 1px 0 rgba(255,255,255,.45)">
   <span style="font-family:var(--fh);font-size:19px;color:#3A2D06;text-transform:uppercase;letter-spacing:.03em">${esc(t.nextLevel)}</span>${svg.arrow.replaceAll('{{s}}','18').replace('{{c}}','#3A2D06')}</div>
   <div style="display:flex;gap:10px">
   <div onclick="replay()" data-hover style="flex:1;height:52px;border-radius:18px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;color:#fff">${svg.replay}<span style="font-family:var(--fh);font-size:16px;text-transform:uppercase;letter-spacing:.04em">${esc(t.replay)}</span></div>
@@ -2412,6 +2453,10 @@ let tickTimer = setInterval(()=>{
   if(clockEl) clockEl.textContent = mm(state.left);
   const pillEl = document.getElementById('timerPill');
   if(pillEl) pillEl.classList.toggle('low', state.left<=15);
+  if(state.left<=0){
+    state.locked = true;
+    finalizeRound(state.matched.length===state.cards.length);
+  }
 },1000);
 
 if(state.screen==='splash'){
