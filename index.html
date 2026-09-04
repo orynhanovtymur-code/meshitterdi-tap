@@ -155,6 +155,19 @@ const LEVELS = [
   {id:'hard',pairs:10,cols:4,seconds:140,reward:400,stars:0,g1:'#14523E',g2:'#08251C'}
 ];
 
+// Жинақ (Collection) top-level categories. Only 'kzMosques' has real
+// content today (the existing ITEMS list); the rest are reserved slots
+// for future content and are shown locked with no fabricated numbers.
+const COLLECTION_CATEGORIES = [
+  {id:'kzMosques', active:true,  name:{kz:'Қазақстан мешіттері', ru:'Мечети Казахстана'}},
+  {id:'scholars',  active:false, name:{kz:'Қазақ даласының ғұламалары', ru:'Учёные казахской степи'}},
+  {id:'holyPlaces',active:false, name:{kz:'Қасиетті орындар', ru:'Святые места'}},
+  {id:'tradition', active:false, name:{kz:'Дін мен дәстүр', ru:'Религия и традиции'}},
+  {id:'islamHist', active:false, name:{kz:'Ислам тарихы', ru:'История ислама'}},
+  {id:'hajj',      active:false, name:{kz:'Қажылық', ru:'Хадж'}},
+  {id:'quran',     active:false, name:{kz:'Құран әлемі', ru:'Мир Корана'}}
+];
+
 
 const CHIP_ON = 'height:24px;padding:0 11px;border-radius:8px;background:#0E3B2E;color:#fff;font-size:10px;font-weight:800;letter-spacing:.1em;display:grid;place-items:center';
 const CHIP_OFF = 'height:24px;padding:0 11px;border-radius:8px;background:transparent;color:#657771;font-size:10px;font-weight:800;letter-spacing:.1em;display:grid;place-items:center';
@@ -174,7 +187,7 @@ let state = { screen:'splash', lang:'kz', coins:1240, found:[], name:'Ойынш
   duelOpponentId:null, duelOpponentName:'', duelResult:null, duelDeclinedMsg:'',
   duelPendingFriendId:null, duelPendingFriendName:'',
   friends:[], friendsLoading:false, globalChannel:null, showFriendsModal:false,
-  showCoinsModal:false, showTodayFactModal:false,
+  showCoinsModal:false, showTodayFactModal:false, viewCategoryId:null, detailItemId:null,
   incomingDuelInvite:null,
   inviteLoading:false, inviteInfo:'', myFriendCode:null,
   addFriendError:'', addFriendInfo:'', addFriendLoading:false,
@@ -657,6 +670,18 @@ function getTodayFact(){
 }
 function openTodayFactModal(){ state.showTodayFactModal = true; render(); }
 function closeTodayFactModal(){ state.showTodayFactModal = false; render(); }
+
+function openCollectionCategory(catId){
+  const cat = COLLECTION_CATEGORIES.find(c=>c.id===catId);
+  if(!cat || !cat.active){ toast(state.lang==='kz' ? 'Жақында қосылады' : 'Скоро будет доступно'); return; }
+  setState({screen:'collectionGrid', viewCategoryId:catId});
+}
+function backToCollectionHub(){ setState({screen:'collection', viewCategoryId:null}); }
+function openItemDetail(id){
+  if(state.found.indexOf(id)===-1) return;
+  setState({detailItemId:id});
+}
+function closeItemDetail(){ setState({detailItemId:null}); }
 
 function goDuelMenu(){
   state.duelError=''; state.duelRoom=null; state.duelRole=null; state.duelDeclinedMsg='';
@@ -1886,39 +1911,60 @@ function screenProfile(t,s){
 }
 
 function screenCollection(t,s){
+  const totalFound = s.found.length, totalAll = ITEMS.length;
+  const pct = totalAll ? Math.round(totalFound/totalAll*100) : 0;
+  const categoryRow = cat=>{
+    if(cat.active){
+      return `<div onclick="openCollectionCategory('${cat.id}')" data-hover style="display:flex;align-items:center;gap:14px;padding:17px;border-radius:24px;background:var(--paper);border:1px solid var(--line);cursor:pointer;margin:0 18px 10px">
+      <div style="width:48px;height:48px;border-radius:16px;background:var(--g1);border:1px solid var(--g2);display:grid;place-items:center;color:var(--g7);flex:none">${svg.collection}</div>
+      <div style="flex:1;min-width:0"><div style="font-family:var(--fh);font-size:17px;text-transform:uppercase;line-height:1.15">${esc(cat.name[s.lang])}</div>
+      <div style="font-size:11.5px;color:var(--mut);margin-top:3px">${totalFound}/${totalAll}</div></div>
+      ${svg.arrow.replaceAll('{{s}}','18').replace('{{c}}','#9AC7B3')}
+      </div>`;
+    }
+    return `<div onclick="openCollectionCategory('${cat.id}')" data-hover style="display:flex;align-items:center;gap:14px;padding:17px;border-radius:24px;background:var(--g1);border:1px solid var(--g2);cursor:pointer;margin:0 18px 10px;opacity:.74">
+    <div style="width:48px;height:48px;border-radius:16px;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;color:var(--mut);flex:none">${svg.lock.replaceAll('{{s}}','19')}</div>
+    <div style="flex:1;min-width:0"><div style="font-family:var(--fh);font-size:17px;text-transform:uppercase;line-height:1.15;color:var(--g8)">${esc(cat.name[s.lang])}</div>
+    <div style="font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--mut);margin-top:3px">${s.lang==='kz'?'Жақында':'Скоро'}</div></div>
+    </div>`;
+  };
+  return `<div class="sc" style="position:absolute;inset:0;overflow-y:auto;padding:24px 0 104px;animation:fade .28s ease">
+  <div style="padding:0 18px 18px">
+  <h3 style="font-size:26px;text-transform:uppercase">${esc(t.collectionTitle)}</h3>
+  <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:14px">
+  <span style="font-size:13px;font-weight:700;color:var(--g8)">${totalFound} / ${totalAll} ${s.lang==='kz'?'ашылды':'открыто'}</span>
+  <span style="font-size:11.5px;font-weight:700;color:var(--mut)">${pct}%</span>
+  </div>
+  <div style="height:8px;border-radius:5px;background:var(--g2);overflow:hidden;margin-top:8px">
+  <div style="height:100%;width:${pct}%;border-radius:5px;background:linear-gradient(90deg,#C9A227,#E7C765)"></div>
+  </div>
+  </div>
+  ${COLLECTION_CATEGORIES.map(categoryRow).join('')}
+  </div>`;
+}
+
+function screenCollectionGrid(t,s){
+  const cat = COLLECTION_CATEGORIES.find(c=>c.id===s.viewCategoryId) || COLLECTION_CATEGORIES[0];
+  const items = ITEMS;
   const collCard = m=>{
     const has = s.found.indexOf(m.id)>-1;
-    return `<div style="position:relative;aspect-ratio:1/1;border-radius:18px;overflow:hidden;background:var(--g2);border:1px solid var(--line)">
+    return `<div ${has?`onclick="openItemDetail('${m.id}')" data-hover`:''} style="position:relative;aspect-ratio:1/1;border-radius:18px;overflow:hidden;background:var(--g2);border:1px solid var(--line);cursor:${has?'pointer':'default'}">
     <div role="img" aria-label="${esc(m.name[s.lang])}" style="position:absolute;inset:0;background-image:url('${m.img}');background-size:cover;background-position:center;${has?'':'filter:grayscale(.85) brightness(.8)'}"></div>
     <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(8,37,28,.6),transparent 60%)"></div>
-    <span style="position:absolute;left:8px;right:8px;bottom:7px;font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.94);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.city[s.lang])}</span>
+    ${has?`<div style="position:absolute;left:8px;right:8px;bottom:7px">
+    <div style="font-size:10.5px;font-weight:800;letter-spacing:.01em;color:#fff;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.name[s.lang])}</div>
+    <div style="font-size:8.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.75);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.city[s.lang])}</div>
+    </div>`:''}
     ${!has?`<div style="position:absolute;inset:0;display:grid;place-items:center;background:rgba(8,37,28,.58);backdrop-filter:blur(3px);color:rgba(255,255,255,.7)">${svg.lock.replaceAll('{{s}}','17')}</div>`:''}
     </div>`;
   };
-  let collSections = '';
-  if(CATEGORIES.length){
-    CATEGORIES.forEach(cat=>{
-      const catItems = ITEMS.filter(m=>m.categoryId===cat.id);
-      if(!catItems.length) return;
-      const catFound = catItems.filter(m=>s.found.indexOf(m.id)>-1).length;
-      collSections += `<div style="display:flex;align-items:baseline;justify-content:space-between;padding:16px 22px 10px">
-      <h4 style="font-size:15px;text-transform:uppercase;color:var(--g8)">${esc(cat.name[s.lang])}</h4>
-      <span style="font-size:11px;font-weight:700;color:var(--mut)">${catFound}/${catItems.length}</span></div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:9px;padding:0 18px">${catItems.map(collCard).join('')}</div>`;
-    });
-    const uncategorized = ITEMS.filter(m=>!m.categoryId || !CATEGORIES.some(c=>c.id===m.categoryId));
-    if(uncategorized.length){
-      collSections += `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:9px;padding:16px 18px 0">${uncategorized.map(collCard).join('')}</div>`;
-    }
-  } else {
-    collSections = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:9px;padding:0 18px">${ITEMS.map(collCard).join('')}</div>`;
-  }
   return `<div class="sc" style="position:absolute;inset:0;overflow-y:auto;padding:24px 0 104px;animation:fade .28s ease">
-  <div style="display:flex;align-items:center;gap:12px;padding:0 18px 6px">
-  <h3 style="font-size:23px;text-transform:uppercase;flex:1">${esc(t.collectionTitle)}</h3>
-  <span style="font-size:11.5px;font-weight:700;color:var(--mut)">${s.found.length}/${ITEMS.length}</span>
+  <div style="display:flex;align-items:center;gap:12px;padding:0 18px 14px">
+  <div onclick="backToCollectionHub()" data-hover style="width:38px;height:38px;border-radius:13px;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;cursor:pointer;color:var(--g8)">${svg.back}</div>
+  <h3 style="font-size:19px;text-transform:uppercase;flex:1;line-height:1.15">${esc(cat.name[s.lang])}</h3>
+  <span style="font-size:11.5px;font-weight:700;color:var(--mut)">${s.found.length}/${items.length}</span>
   </div>
-  ${collSections}
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:9px;padding:0 18px">${items.map(collCard).join('')}</div>
   </div>`;
 }
 
@@ -1987,6 +2033,28 @@ function overlayTodayFactModal(t,s){
   </div></div></div>`;
 }
 
+function overlayItemDetailModal(t,s){
+  if(!s.detailItemId) return '';
+  const m = ITEMS.find(x=>x.id===s.detailItemId);
+  if(!m) return '';
+  return `<div style="position:absolute;inset:0;z-index:78;animation:fade .22s ease">
+  <div onclick="closeItemDetail()" style="position:absolute;inset:0;background:rgba(8,37,28,.5);backdrop-filter:blur(5px)"></div>
+  <div style="position:absolute;left:0;right:0;bottom:0;border-radius:34px 34px 0 0;background:var(--cream);box-shadow:0 -22px 50px -14px rgba(8,37,28,.5);animation:sheetin .38s cubic-bezier(.2,.9,.2,1) both;overflow:hidden">
+  <div style="width:42px;height:4px;border-radius:3px;background:var(--g3);margin:12px auto 0"></div>
+  <div style="padding:14px 22px 30px">
+  <div style="position:relative;height:172px;border-radius:24px;overflow:hidden;border:1px solid var(--line)">
+  <div role="img" aria-label="${esc(m.name[s.lang])}" style="position:absolute;inset:0;background-image:url('${m.img}');background-size:cover;background-position:center"></div>
+  <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(8,37,28,.72),transparent 55%)"></div>
+  <div style="position:absolute;left:16px;right:16px;bottom:13px">
+  <h3 style="font-size:24px;color:#fff;text-transform:uppercase;line-height:1.05">${esc(m.name[s.lang])}</h3>
+  <div style="display:flex;align-items:center;gap:5px;margin-top:6px;color:rgba(255,255,255,.75);font-size:11.5px;font-weight:700">${svg.pin}${esc(m.city[s.lang])}</div>
+  </div></div>
+  <p style="margin:15px 0 0;font-size:13.5px;line-height:1.62;color:var(--ink);text-wrap:pretty">${esc(m.fact[s.lang])}</p>
+  <div onclick="closeItemDetail()" data-hover style="margin-top:18px;height:52px;border-radius:18px;background:linear-gradient(150deg,#1B6B50,#0E3B2E);display:flex;align-items:center;justify-content:center;gap:9px;cursor:pointer">
+  <span style="font-family:var(--fh);font-size:18px;color:#fff;text-transform:uppercase;letter-spacing:.04em">${s.lang==='kz'?'Жабу':'Закрыть'}</span></div>
+  </div></div></div>`;
+}
+
 function overlayFriendsModal(t,s){
   if(!s.showFriendsModal) return '';
   const friendRows = (s.friends||[]).map(f=>`
@@ -2014,7 +2082,7 @@ function overlayFriendsModal(t,s){
 }
 
 function overlayNav(t,s){
-  const showNav = ['home','levels','collection','profile'].indexOf(s.screen)>-1;
+  const showNav = ['home','levels','collection','collectionGrid','profile'].indexOf(s.screen)>-1;
   if(!showNav) return '';
   const accent = '#0E3B2E';
   const nav = (on)=> 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;height:58px;border-radius:20px;cursor:pointer;transition:background .18s,color .18s;'+
@@ -2023,7 +2091,7 @@ function overlayNav(t,s){
   <div style="pointer-events:auto;height:70px;border-radius:26px;background:rgba(255,255,255,.82);backdrop-filter:blur(18px) saturate(1.4);border:1px solid rgba(255,255,255,.75);box-shadow:0 -2px 0 rgba(8,37,28,.03),0 18px 38px -16px rgba(8,37,28,.42);display:grid;grid-template-columns:repeat(4,1fr);align-items:center;padding:0 6px">
   <div onclick="goHome()" style="${nav(s.screen==='home')}">${svg.home.replaceAll('{{s}}','21')}<span style="font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase">${esc(t.home)}</span></div>
   <div onclick="goLevels()" style="${nav(s.screen==='levels'||s.screen==='game')}">${svg.games}<span style="font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase">${esc(t.games)}</span></div>
-  <div onclick="goCollection()" style="${nav(s.screen==='collection')}">${svg.collection}<span style="font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase">${esc(t.navColl)}</span></div>
+  <div onclick="goCollection()" style="${nav(s.screen==='collection'||s.screen==='collectionGrid')}">${svg.collection}<span style="font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase">${esc(t.navColl)}</span></div>
   <div onclick="goProfile()" style="${nav(s.screen==='profile')}">${svg.profile}<span style="font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase">${esc(t.profile)}</span></div>
   </div></div>`;
 }
@@ -2298,6 +2366,7 @@ function render(){
   else if(s.screen==='victory') body = screenVictory(t,s);
   else if(s.screen==='board') body = screenBoard(t,s);
   else if(s.screen==='collection') body = screenCollection(t,s);
+  else if(s.screen==='collectionGrid') body = screenCollectionGrid(t,s);
   else if(s.screen==='settings') body = screenSettings(t,s);
   else if(s.screen==='achievements') body = screenAchievements(t,s);
   else if(s.screen==='duelMenu') body = screenDuelMenu(t,s);
@@ -2309,7 +2378,7 @@ function render(){
   else if(s.screen==='inviteCode') body = screenInviteCode(t,s);
   else if(s.screen==='addFriend') body = screenAddFriend(t,s);
   else if(s.screen==='profile') body = screenProfile(t,s);
-  body += overlaySheet(t,s) + overlayToast(s) + overlayDuelInvite(t,s) + overlayFriendsModal(t,s) + overlayCoinsModal(t,s) + overlayTodayFactModal(t,s) + overlayNav(t,s);
+  body += overlaySheet(t,s) + overlayToast(s) + overlayDuelInvite(t,s) + overlayFriendsModal(t,s) + overlayCoinsModal(t,s) + overlayTodayFactModal(t,s) + overlayItemDetailModal(t,s) + overlayNav(t,s);
   document.getElementById('phone').innerHTML = body;
 }
 
