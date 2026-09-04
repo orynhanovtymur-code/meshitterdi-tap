@@ -117,7 +117,7 @@ let ITEMS = [
 const STR = {
   kz:{appName:'ДІН МЕН ДӘСТҮР',splashTag:'Ойна. Таны. Үйрен.',loading:'Жүктелуде',
     greeting:'Қайырлы күн',heroKicker:'Танымдық ойын',heroDesc:'Карточкаларды ашып, сәйкес жұптарды тап. Әр жұппен бірге жаңа мәлімет біл.',
-    start:'Ойынды бастау',levels:'Деңгейлер',seeAll:'Барлығы',collection:'Жиналған карточка',rank:'орын',
+    start:'Ойынды бастау',levels:'Деңгейлер',seeAll:'Барлығы',collection:'Ашылды',rank:'орын',inRating:'Рейтингте',viewAllColl:'Барлығын көру',
     collectionTitle:'Менің жинағым',step1:'1-қадам',chooseLevel:'Деңгейді таңда',
     levelTip:'Кеңес: қиын деңгейде әр жұпқа ×2 ұпай беріледі. Уақытты тиімді пайдалан!',
     easy:'Оңай',medium:'Орташа',hard:'Қиын',
@@ -133,7 +133,7 @@ const STR = {
     shared:'Нәтиже көшірілді — досыңмен бөліс!'},
   ru:{appName:'ДІН МЕН ДӘСТҮР',splashTag:'Играй. Познавай. Учись.',loading:'Загрузка',
     greeting:'Добрый день',heroKicker:'Познавательная игра',heroDesc:'Открывай карточки и находи подходящие пары. С каждой парой узнавай новый факт.',
-    start:'Начать игру',levels:'Уровни',seeAll:'Все',collection:'Собрано карточек',rank:'место',
+    start:'Начать игру',levels:'Уровни',seeAll:'Все',collection:'Открыто',rank:'место',inRating:'В рейтинге',viewAllColl:'Смотреть все',
     collectionTitle:'Моя коллекция',step1:'Шаг 1',chooseLevel:'Выбери уровень',
     levelTip:'Совет: на сложном уровне каждая пара даёт ×2 очков. Используй время с умом!',
     easy:'Легко',medium:'Средне',hard:'Сложно',
@@ -678,7 +678,6 @@ function openCollectionCategory(catId){
 }
 function backToCollectionHub(){ setState({screen:'collection', viewCategoryId:null}); }
 function openItemDetail(id){
-  if(state.found.indexOf(id)===-1) return;
   setState({detailItemId:id});
 }
 function closeItemDetail(){ setState({detailItemId:null}); }
@@ -1409,7 +1408,7 @@ function updateDailyChallenge(info){
   if(done && !wasDone){
     state.coins = (state.coins||0) + dc.reward;
     persist({coins:state.coins});
-    setTimeout(()=>toast((state.lang==='kz'?'Бүгінгі сын орындалды! +':'Дневное испытание выполнено! +')+dc.reward+' 🪙'), 1400);
+    setTimeout(()=>toast((state.lang==='kz'?'Тапсырма орындалды! +':'Задание выполнено! +')+dc.reward+' 🪙'), 1400);
   }
 }
 initDailyChallenge();
@@ -1472,8 +1471,8 @@ function screenHome(t,s){
   const dc = s.dailyChallenge;
   const dailyHtml = dc ? `<div style="margin:22px 18px 0;padding:18px;border-radius:24px;background:var(--paper);border:1px solid var(--line);box-shadow:0 6px 18px -12px rgba(8,37,28,.3)">
   <div style="display:flex;align-items:center;justify-content:space-between">
-  <span style="font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--g6);font-weight:800">${s.lang==='kz'?'Бүгінгі сын':'Испытание дня'}</span>
-  ${dc.done?`<span style="color:#2E8365">${svg.check}</span>`:''}
+  <span style="font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--g6);font-weight:800">${s.lang==='kz'?'Күнделікті тапсырма':'Ежедневное задание'}</span>
+  ${dc.done?`<span style="display:inline-flex;align-items:center;gap:5px;height:23px;padding:0 9px;border-radius:8px;background:rgba(46,131,101,.12);border:1px solid rgba(46,131,101,.3);color:#2E8365;font-size:10px;font-weight:800;letter-spacing:.05em">${svg.check}${s.lang==='kz'?'ОРЫНДАЛДЫ':'ВЫПОЛНЕНО'}</span>`:''}
   </div>
   <div style="font-family:var(--fh);font-size:19px;margin-top:8px;line-height:1.2">${esc(s.lang==='kz'?dc.titleKz:dc.titleRu)}</div>
   <div style="display:flex;align-items:center;gap:10px;margin-top:12px">
@@ -1483,13 +1482,17 @@ function screenHome(t,s){
   <div style="margin-top:10px;display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:8px;background:var(--gold1);border:1px solid rgba(201,162,39,.32);color:#8A6E10;font-size:12px;font-weight:800">+${dc.reward} ${svg.coin}</div>
   </div>` : '';
   const todayItem = getTodayFact();
-  const todayHtml = todayItem ? `<div onclick="openTodayFactModal()" data-hover style="margin:14px 18px 0;padding:16px;border-radius:22px;background:var(--g1);border:1px solid var(--g2);cursor:pointer;display:flex;gap:12px;align-items:center">
-  <div style="width:46px;height:46px;border-radius:15px;overflow:hidden;flex:none;background:var(--g2)"><div style="width:100%;height:100%;background-image:url('${todayItem.img}');background-size:cover;background-position:center"></div></div>
-  <div style="flex:1;min-width:0">
-  <div style="font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--g6);font-weight:800">${s.lang==='kz'?'Бүгін біл':'Узнай сегодня'}</div>
-  <div style="font-family:var(--fh);font-size:15px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(todayItem.name[s.lang])}</div>
+  const todayFactText = todayItem ? (todayItem.fact[s.lang]||'') : '';
+  const todayShortDesc = todayFactText.length>90 ? todayFactText.slice(0,87).trim()+'…' : todayFactText;
+  const todayHtml = todayItem ? `<div style="margin:14px 18px 0;padding:16px;border-radius:22px;background:var(--g1);border:1px solid var(--g2)">
+  <div style="font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--g6);font-weight:800">${s.lang==='kz'?'Пайдалы мәлімет':'Полезный факт'}</div>
+  <div style="margin-top:10px;height:132px;border-radius:16px;overflow:hidden;background:var(--g2)"><div style="width:100%;height:100%;background-image:url('${todayItem.img}');background-size:cover;background-position:center"></div></div>
+  <div style="font-family:var(--fh);font-size:17px;margin-top:11px;line-height:1.2">${esc(todayItem.name[s.lang])}</div>
+  <div style="font-size:12.5px;color:var(--mut);margin-top:4px;line-height:1.55">${esc(todayShortDesc)}</div>
+  <div onclick="openItemDetail('${todayItem.id}')" data-hover style="margin-top:11px;display:inline-flex;align-items:center;gap:5px;cursor:pointer">
+  <span style="font-size:11px;font-weight:800;color:var(--g6);letter-spacing:.03em">${s.lang==='kz'?'Толығырақ':'Подробнее'}</span>
+  ${svg.arrow.replaceAll('{{s}}','13').replace('{{c}}','#1B6B50')}
   </div>
-  <span style="font-size:11px;font-weight:800;color:var(--g6);flex:none;letter-spacing:.03em">${s.lang==='kz'?'Толығырақ':'Подробнее'}</span>
   </div>` : '';
   const collHtml = ITEMS.map(m=>{
     const has = s.found.indexOf(m.id)>-1;
@@ -1531,14 +1534,17 @@ function screenHome(t,s){
   <div style="font-family:var(--fh);font-size:22px;color:#fff;line-height:1">${s.found.length}<span style="font-size:12px;color:rgba(255,255,255,.42)">/${ITEMS.length}</span></div>
   <div style="font-size:9.5px;letter-spacing:.15em;text-transform:uppercase;color:rgba(255,255,255,.45);margin-top:4px">${esc(t.collection)}</div></div>
   <div style="flex:1;padding:11px 12px;border-radius:15px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.11)">
-  <div style="font-family:var(--fh);font-size:22px;color:#fff;line-height:1">${s.myRank?s.myRank:'—'}</div>
-  <div style="font-size:9.5px;letter-spacing:.15em;text-transform:uppercase;color:rgba(255,255,255,.45);margin-top:4px">${esc(t.rank)}</div></div>
+  <div style="font-family:var(--fh);font-size:22px;color:#fff;line-height:1;text-transform:uppercase">${s.myRank?(s.myRank+'-'+t.rank):'—'}</div>
+  <div style="font-size:9.5px;letter-spacing:.15em;text-transform:uppercase;color:rgba(255,255,255,.45);margin-top:4px">${esc(t.inRating)}</div></div>
   </div></div></div>
   ${dailyHtml}
   ${todayHtml}
   <div style="display:flex;align-items:baseline;justify-content:space-between;padding:26px 22px 12px">
   <h3 style="font-size:23px;text-transform:uppercase">${esc(t.collectionTitle)}</h3>
-  <span style="font-size:11.5px;font-weight:700;color:var(--mut)">${s.found.length}/${ITEMS.length}</span></div>
+  <div onclick="goCollection()" data-hover style="display:flex;align-items:center;gap:4px;cursor:pointer">
+  <span style="font-size:11px;font-weight:800;color:var(--g6);letter-spacing:.03em">${esc(t.viewAllColl)}</span>
+  ${svg.arrow.replaceAll('{{s}}','13').replace('{{c}}','#1B6B50')}
+  </div></div>
   <div class="sc" style="display:flex;gap:10px;padding:0 18px 4px;overflow-x:auto">${collHtml}</div>
   </div>`;
 }
