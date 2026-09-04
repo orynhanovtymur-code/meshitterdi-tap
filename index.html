@@ -129,7 +129,7 @@ const STR = {
     home:'Басты',games:'Ойнау',rating:'Рейтинг',profile:'Профиль',navColl:'Жинақ',
     globalTop:'Үздік ойыншылар',overallRating:'Жалпы рейтинг',levelTag:'Деңгей',xpToNext:'Келесі деңгейге',
     gamesPlayed:'Ойналған ойын',bestTime:'Үздік нәтиже',mosquesFound:'Жиналған карточка',
-    invite:'Дос шақыру',inviteDesc:'Әр досқа 200 монета',inviteBtn:'Шақыру',language:'Тіл',
+    invite:'Доспен ойна',inviteDesc:'Әр досқа 200 монета',inviteBtn:'Ойын құру',inviteJoinBtn:'Кодпен қосылу',language:'Тіл',
     shared:'Нәтиже көшірілді — досыңмен бөліс!'},
   ru:{appName:'ДІН МЕН ДӘСТҮР',splashTag:'Играй. Познавай. Учись.',loading:'Загрузка',
     greeting:'Добрый день',heroKicker:'Познавательная игра',heroDesc:'Открывай карточки и находи подходящие пары. С каждой парой узнавай новый факт.',
@@ -145,7 +145,7 @@ const STR = {
     home:'Главная',games:'Играть',rating:'Рейтинг',profile:'Профиль',navColl:'Коллекция',
     globalTop:'Лучшие игроки',overallRating:'Общий рейтинг',levelTag:'Уровень',xpToNext:'До след. уровня',
     gamesPlayed:'Сыграно игр',bestTime:'Лучший результат',mosquesFound:'Собрано карточек',
-    invite:'Пригласить друга',inviteDesc:'200 монет за друга',inviteBtn:'Пригласить',language:'Язык',
+    invite:'Играть с другом',inviteDesc:'200 монет за друга',inviteBtn:'Создать игру',inviteJoinBtn:'Войти по коду',language:'Язык',
     shared:'Результат скопирован — поделись с другом!'}
 };
 
@@ -1942,6 +1942,15 @@ function screenProfile(t,s){
   const achList = computeAchievements(s);
   const achUnlockedCount = achList.filter(a=>a.unlocked).length;
   const achTotalCount = achList.length;
+  const friendMiniRows = (s.friends||[]).length
+    ? (s.friends||[]).map(f=>`
+      <div style="display:flex;align-items:center;gap:12px;padding:11px 13px;border-radius:18px;background:var(--g1);border:1px solid var(--g2);margin-bottom:8px">
+      <div style="width:38px;height:38px;border-radius:14px;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;font-family:var(--fh);font-size:14px;color:var(--g7);flex:none">${esc(initials(f.name))}</div>
+      <div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</div>
+      <div style="font-size:11px;color:var(--mut);margin-top:1px">${esc(f.city)}</div></div>
+      <button onclick="selectDuelFriend('${f.id}')" data-hover style="height:34px;padding:0 13px;border-radius:11px;background:linear-gradient(150deg,#1B6B50,#0E3B2E);color:#fff;font-family:var(--fh);font-size:12px;text-transform:uppercase;letter-spacing:.03em;cursor:pointer" ${s.duelLoading?'disabled':''}>${s.lang==='kz'?'Шақыру':'Позвать'}</button>
+      </div>`).join('')
+    : `<div style="text-align:center;padding:14px 4px;color:var(--mut);font-size:12px;line-height:1.6">${s.lang==='kz'?'Әзірге достарың жоқ. Кодпен қосылып немесе ойын құрып баста.':'Пока нет друзей. Начни с кода или создай игру.'}</div>`;
   const collCard = m=>{
     const has = s.found.indexOf(m.id)>-1;
     return `<div style="position:relative;aspect-ratio:1/1;border-radius:18px;overflow:hidden;background:var(--g2);border:1px solid var(--line)">
@@ -2006,18 +2015,22 @@ function screenProfile(t,s){
   ${svg.arrow.replaceAll('{{s}}','18').replace('{{c}}','#9AC7B3')}
   </div>
   <div style="margin:14px 18px 0;padding:17px;border-radius:24px;background:var(--paper);border:1px solid var(--line)">
-  <div onclick="openFriendsModal()" data-hover style="display:flex;align-items:center;gap:14px;cursor:pointer">
+  <div style="display:flex;align-items:center;gap:14px">
   <div style="width:44px;height:44px;border-radius:16px;background:var(--g1);border:1px solid var(--g2);display:grid;place-items:center;color:var(--g7);flex:none">${svg.invite}</div>
   <div style="flex:1;min-width:0"><div style="font-family:var(--fh);font-size:19px;line-height:1.1">${esc(t.invite)}</div>
-  <div style="font-size:11.5px;color:var(--mut);margin-top:3px;line-height:1.45">${s.lang==='kz'?'Достарым':'Мои друзья'}${s.friends&&s.friends.length?' ('+s.friends.length+')':''}</div></div>
-  ${svg.arrow.replaceAll('{{s}}','18').replace('{{c}}','#9AC7B3')}
+  <div style="font-size:11.5px;color:var(--mut);margin-top:3px;line-height:1.45">${s.lang==='kz'?'Досыңды шақыр немесе кодпен қосыл':'Пригласи друга или войди по коду'}</div></div>
   </div>
   <div style="display:flex;gap:8px;margin-top:14px">
   <div onclick="goInviteCode()" data-hover style="flex:1;height:40px;border-radius:13px;background:linear-gradient(150deg,#1B6B50,#0E3B2E);display:grid;place-items:center;cursor:pointer;box-shadow:0 10px 20px -10px rgba(14,59,46,.6)">
   <span style="font-family:var(--fh);font-size:13px;color:#fff;text-transform:uppercase;letter-spacing:.04em">${s.inviteLoading?'…':esc(t.inviteBtn)}</span></div>
   <div onclick="goAddFriend()" data-hover style="flex:1;height:40px;border-radius:13px;background:var(--gold1);border:1px solid rgba(201,162,39,.32);display:grid;place-items:center;cursor:pointer">
-  <span style="font-family:var(--fh);font-size:13px;color:#8A6E10;text-transform:uppercase;letter-spacing:.04em">${s.lang==='kz'?'Қосылу':'Ввести код'}</span></div>
+  <span style="font-family:var(--fh);font-size:13px;color:#8A6E10;text-transform:uppercase;letter-spacing:.04em">${esc(t.inviteJoinBtn)}</span></div>
   </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-top:18px;padding-top:14px;border-top:1px solid var(--line)">
+  <span style="font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--mut)">${s.lang==='kz'?'Достарым':'Мои друзья'} (${(s.friends||[]).length})</span>
+  <span onclick="openFriendsModal()" data-hover style="font-size:11px;font-weight:700;color:var(--g6);cursor:pointer">${s.lang==='kz'?'Басқару':'Управление'}</span>
+  </div>
+  <div style="margin-top:10px">${friendMiniRows}</div>
   </div>
   <div style="display:flex;align-items:baseline;justify-content:space-between;padding:24px 22px 4px">
   <h3 style="font-size:22px;text-transform:uppercase">${esc(t.collectionTitle)}</h3>
