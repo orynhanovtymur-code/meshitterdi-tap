@@ -184,7 +184,7 @@ let state = { screen:'splash', lang:'kz', coins:1240, found:[], name:'Ойынш
   settingsError:'', settingsInfo:'', settingsLoading:false, prevScreen:'home',
   duelRoom:null, duelRole:null, duelChannel:null, duelError:'', duelLoading:false,
   duelCountdownN:3, duelDeckIds:[], duelFlipped:[], duelMatches:[], duelLocked:false,
-  duelOpponentId:null, duelOpponentName:'', duelResult:null, duelDeclinedMsg:'',
+  duelOpponentId:null, duelOpponentName:'', duelResult:null, duelResultFinalized:false, duelDeclinedMsg:'',
   duelPendingFriendId:null, duelPendingFriendName:'',
   friends:[], friendsLoading:false, globalChannel:null, showFriendsModal:false,
   showCoinsModal:false, showTodayFactModal:false, viewCategoryId:null, detailItemId:null,
@@ -880,6 +880,7 @@ function startDuelGameFromRoom(row){
   state.duelMatches = [];
   state.duelLocked = false;
   state.duelResult = null;
+  state.duelResultFinalized = false;
   if(!state.duelOpponentId) state.duelOpponentId = state.duelRole==='host' ? row.guest_id : row.host_id;
   setState({screen:'duelGame'});
 }
@@ -959,8 +960,13 @@ function maybeFinishDuel(){
   computeDuelResult(Object.assign({}, room, {status:'finished'}));
 }
 
+// Guarded like finalizeRound(): multiple realtime events (duel_matches
+// insert echo, duel_rooms status update) can each independently try to
+// settle the same duel. Only the first one actually computes/pays out.
 function computeDuelResult(row){
   state.duelRoom = row;
+  if(state.duelResultFinalized){ render(); return; }
+  state.duelResultFinalized = true;
   const myCount = state.duelMatches.filter(m=>m.claimed_by===state.playerId).length;
   const oppCount = state.duelMatches.length - myCount;
   state.duelResult = { myCount, oppCount, win: myCount>oppCount, draw: myCount===oppCount };
@@ -1990,7 +1996,7 @@ function screenProfile(t,s){
   <div style="padding:15px;border-radius:22px;background:var(--paper);border:1px solid var(--line)">
   <div style="color:var(--g6)">${svg.starSolid.replace('currentColor','currentColor')}</div><div style="font-family:var(--fh);font-size:28px;margin-top:9px;line-height:1">${s.found.length}<span style="font-size:14px;color:var(--mut)">/${ITEMS.length}</span></div>
   <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--mut);margin-top:3px">${esc(t.mosquesFound)}</div></div>
-  <div style="padding:15px;border-radius:22px;background:var(--gold1);border:1px solid rgba(201,162,39,.3)">
+  <div onclick="openCoinsModal()" data-hover style="padding:15px;border-radius:22px;background:var(--gold1);border:1px solid rgba(201,162,39,.3);cursor:pointer">
   <div style="color:#8A6E10">${svg.reward}</div><div style="font-family:var(--fh);font-size:28px;margin-top:9px;line-height:1;color:#6E5511">${s.coins.toLocaleString('ru-RU')}</div>
   <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#8A6E10;margin-top:3px">${esc(t.coins)}</div></div></div>
   <div onclick="goAchievements()" data-hover style="margin:14px 18px 0;padding:17px;border-radius:24px;background:var(--paper);border:1px solid var(--line);display:flex;align-items:center;gap:14px;cursor:pointer">
@@ -2134,8 +2140,20 @@ function overlayCoinsModal(t,s){
   </div>
   <div style="font-family:var(--fh);font-size:30px;color:#8A6E10;margin:6px 0 10px">${s.coins.toLocaleString('ru-RU')}</div>
   <p style="margin:0;font-size:13px;line-height:1.6;color:var(--ink)">${s.lang==='kz'
-    ? 'Ойын ойнап, күнделікті сындарды орындап және жетістіктер ашып монета жина. Жинаған монеталарыңды алдағы уақытта жаңа жинақтар мен сыйлықтарға жұмсай аласың.'
-    : 'Играй, выполняй ежедневные испытания и открывай достижения, чтобы копить монеты. Их можно будет тратить на новые коллекции и награды.'}</p>
+    ? 'Ойын ойнап, күнделікті сындарды орындап және жетістіктер ашып монета жина.'
+    : 'Играй, выполняй ежедневные испытания и открывай достижения, чтобы копить монеты.'}</p>
+  <h4 style="margin:18px 0 10px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--g7)">${s.lang==='kz'?'Монетаны қайда қолдануға болады?':'Где можно использовать монеты?'}</h4>
+  <div style="display:flex;flex-direction:column;gap:9px">
+  ${[
+    s.lang==='kz' ? 'Жаңа жинақтарды ашу' : 'Открывать новые коллекции',
+    s.lang==='kz' ? 'Ойын кезінде көмек алу' : 'Получать подсказки в игре',
+    s.lang==='kz' ? 'Профиль безендірулерін ашу' : 'Открывать оформление профиля'
+  ].map(item=>`<div style="display:flex;align-items:center;gap:10px">
+    <span style="width:6px;height:6px;border-radius:50%;background:#C9A227;flex:none"></span>
+    <span style="font-size:12.5px;color:var(--ink)">${esc(item)}</span>
+    </div>`).join('')}
+  </div>
+  <div style="margin-top:16px;display:inline-flex;align-items:center;height:26px;padding:0 11px;border-radius:8px;background:var(--g1);border:1px solid var(--g2);color:var(--mut);font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase">${s.lang==='kz'?'Дүкен жақында':'Магазин скоро'}</div>
   </div></div>`;
 }
 
