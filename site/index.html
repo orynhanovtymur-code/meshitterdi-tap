@@ -172,6 +172,7 @@ let state = { screen:'splash', lang:'kz', coins:1240, found:[], name:'Ойынш
   duelOpponentId:null, duelOpponentName:'', duelResult:null, duelDeclinedMsg:'',
   duelPendingFriendId:null, duelPendingFriendName:'',
   friends:[], friendsLoading:false, globalChannel:null, showFriendsModal:false,
+  showCoinsModal:false, showTodayFactModal:false,
   incomingDuelInvite:null,
   inviteLoading:false, inviteInfo:'', myFriendCode:null,
   addFriendError:'', addFriendInfo:'', addFriendLoading:false,
@@ -645,6 +646,16 @@ function closeFriendsModal(){
   render();
 }
 
+function openCoinsModal(){ state.showCoinsModal = true; render(); }
+function closeCoinsModal(){ state.showCoinsModal = false; render(); }
+
+function getTodayFact(){
+  if(!ITEMS.length) return null;
+  return ITEMS[dayOfYear(new Date()) % ITEMS.length];
+}
+function openTodayFactModal(){ state.showTodayFactModal = true; render(); }
+function closeTodayFactModal(){ state.showTodayFactModal = false; render(); }
+
 function goDuelMenu(){
   state.duelError=''; state.duelRoom=null; state.duelRole=null; state.duelDeclinedMsg='';
   teardownDuelChannel();
@@ -993,9 +1004,7 @@ function toast(msg){
 
 function start(id){
   const L = lvl(id);
-  const pairs = Math.max(1, Math.min(L.pairs, ITEMS.length));
-  const pool = ITEMS.slice().sort(()=>Math.random()-0.5).slice(0,pairs);
-  const deck = pool.concat(pool).map((m,i)=>({key:m.id+'-'+i,m})).sort(()=>Math.random()-0.5);
+  const deck = dealDeck(ITEMS, L.pairs);
   state.currentStage = null;
   state.firstNewCardThisGame = null;
   setState({screen:'game',levelId:id,cards:deck,flipped:[],matched:[],justMatched:[],
@@ -1029,7 +1038,7 @@ function explainLockedStage(stageIndex){
 function startStage(stageIndex){
   if(stageIndex > (state.unlockedStage||1)) return;
   const pool = stageItems(stageIndex);
-  const deck = pool.concat(pool).map((m,i)=>({key:m.id+'-'+i,m})).sort(()=>Math.random()-0.5);
+  const deck = dealDeck(pool, pool.length);
   state.currentStage = stageIndex;
   state.firstNewCardThisGame = null;
   setState({screen:'game',levelId:'stage',cards:deck,flipped:[],matched:[],justMatched:[],
@@ -1060,14 +1069,19 @@ function flip(i){
   const movesEl = document.getElementById('movesVal');
   if(movesEl) movesEl.textContent = state.moves;
   const a = s.cards[fl[0]], b = s.cards[fl[1]];
-  if(a.m.id===b.m.id){
+  const isMatch = a.m.id===b.m.id || (a.m.pairKey && a.m.pairKey===b.m.pairKey);
+  if(isMatch){
     const L = lvl(s.levelId);
     const pts = L.id==='hard'?200:(L.id==='medium'?150:100);
     setTimeout(()=>{
       state.matched = state.matched.concat(fl);
-      const wasNew = state.found.indexOf(a.m.id)===-1;
-      state.found = wasNew ? state.found.concat([a.m.id]) : state.found;
-      if(wasNew && !state.firstNewCardThisGame) state.firstNewCardThisGame = a.m;
+      [a.m, b.m].forEach(item=>{
+        const wasNew = state.found.indexOf(item.id)===-1;
+        if(wasNew){
+          state.found = state.found.concat([item.id]);
+          if(!state.firstNewCardThisGame) state.firstNewCardThisGame = item;
+        }
+      });
       state.coins = state.coins + Math.round(pts/4);
       state.score = state.score + pts;
       state.flipped = [];
@@ -1226,10 +1240,33 @@ const svg = {
 };
 
 function mapItemRow(r){
-  return { id:r.id, img:r.image_url, categoryId:r.category_id||null,
+  return { id:r.id, img:r.image_url, categoryId:r.category_id||null, pairKey:r.pair_key||null,
     name:{kz:r.name_kz, ru:r.name_ru||r.name_kz},
     city:{kz:r.city_kz, ru:r.city_ru||r.city_kz},
     fact:{kz:r.fact_kz, ru:r.fact_ru||r.fact_kz} };
+}
+
+function buildUnits(source){
+  const byKey = {};
+  const units = [];
+  source.forEach(m=>{
+    if(m.pairKey){
+      if(!byKey[m.pairKey]){ byKey[m.pairKey] = {a:m, b:null}; units.push(byKey[m.pairKey]); }
+      else if(!byKey[m.pairKey].b) byKey[m.pairKey].b = m;
+    } else {
+      units.push({a:m, b:m});
+    }
+  });
+  units.forEach(u=>{ if(!u.b) u.b = u.a; });
+  return units;
+}
+
+function dealDeck(source, pairsNeeded){
+  const pairs = Math.max(1, Math.min(pairsNeeded, buildUnits(source).length));
+  const units = buildUnits(source).sort(()=>Math.random()-0.5).slice(0, pairs);
+  const cards = [];
+  units.forEach(u=>{ cards.push(u.a, u.b); });
+  return cards.map((m,i)=>({key:m.id+'-'+i,m})).sort(()=>Math.random()-0.5);
 }
 
 const XP_PER_LEVEL = 1000;
@@ -1416,6 +1453,15 @@ function screenHome(t,s){
   </div>
   <div style="margin-top:10px;display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:8px;background:var(--gold1);border:1px solid rgba(201,162,39,.32);color:#8A6E10;font-size:12px;font-weight:800">+${dc.reward} ${svg.coin}</div>
   </div>` : '';
+  const todayItem = getTodayFact();
+  const todayHtml = todayItem ? `<div onclick="openTodayFactModal()" data-hover style="margin:14px 18px 0;padding:16px;border-radius:22px;background:var(--g1);border:1px solid var(--g2);cursor:pointer;display:flex;gap:12px;align-items:center">
+  <div style="width:46px;height:46px;border-radius:15px;overflow:hidden;flex:none;background:var(--g2)"><div style="width:100%;height:100%;background-image:url('${todayItem.img}');background-size:cover;background-position:center"></div></div>
+  <div style="flex:1;min-width:0">
+  <div style="font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--g6);font-weight:800">${s.lang==='kz'?'Бүгін біл':'Узнай сегодня'}</div>
+  <div style="font-family:var(--fh);font-size:15px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(todayItem.name[s.lang])}</div>
+  </div>
+  <span style="font-size:11px;font-weight:800;color:var(--g6);flex:none;letter-spacing:.03em">${s.lang==='kz'?'Толығырақ':'Подробнее'}</span>
+  </div>` : '';
   const collHtml = ITEMS.map(m=>{
     const has = s.found.indexOf(m.id)>-1;
     return `<div style="flex:none;width:96px">
@@ -1433,7 +1479,7 @@ function screenHome(t,s){
   <div style="flex:1;min-width:0">
   <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--mut)">${esc(t.greeting)}</div>
   <div style="font-family:var(--fh);font-size:20px;line-height:1.1;margin-top:1px">${esc(s.name)}</div></div>
-  <div style="display:flex;align-items:center;gap:5px;height:32px;padding:0 11px;border-radius:11px;background:var(--gold1);border:1px solid rgba(201,162,39,.34);color:#8A6E10">
+  <div onclick="openCoinsModal()" data-hover style="display:flex;align-items:center;gap:5px;height:32px;padding:0 11px;border-radius:11px;background:var(--gold1);border:1px solid rgba(201,162,39,.34);color:#8A6E10;cursor:pointer">
   ${svg.coin}<span style="font-size:13px;font-weight:800;letter-spacing:.01em">${s.coins.toLocaleString('ru-RU')}</span></div>
   <div onclick="toggleLang()" data-hover style="width:32px;height:32px;border-radius:11px;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;font-family:var(--fh);font-size:12px;color:var(--g7);cursor:pointer;letter-spacing:.04em">${s.lang==='kz'?'ҚАЗ':'РУС'}</div>
   </div>
@@ -1460,6 +1506,7 @@ function screenHome(t,s){
   <div style="font-size:9.5px;letter-spacing:.15em;text-transform:uppercase;color:rgba(255,255,255,.45);margin-top:4px">${esc(t.rank)}</div></div>
   </div></div></div>
   ${dailyHtml}
+  ${todayHtml}
   <div style="display:flex;align-items:baseline;justify-content:space-between;padding:26px 22px 12px">
   <h3 style="font-size:23px;text-transform:uppercase">${esc(t.collectionTitle)}</h3>
   <span style="font-size:11.5px;font-weight:700;color:var(--mut)">${s.found.length}/${ITEMS.length}</span></div>
@@ -1854,6 +1901,45 @@ function overlayDuelInvite(t,s){
   </div>`;
 }
 
+function overlayCoinsModal(t,s){
+  if(!s.showCoinsModal) return '';
+  return `<div style="position:absolute;inset:0;z-index:78;animation:fade .22s ease">
+  <div onclick="closeCoinsModal()" style="position:absolute;inset:0;background:rgba(8,37,28,.5);backdrop-filter:blur(5px)"></div>
+  <div style="position:absolute;left:20px;right:20px;bottom:24px;border-radius:26px;background:var(--cream);box-shadow:0 -10px 40px -10px rgba(8,37,28,.5);padding:22px;animation:up .3s cubic-bezier(.2,.85,.2,1) both">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+  <div style="width:44px;height:44px;border-radius:16px;background:var(--gold1);border:1px solid rgba(201,162,39,.32);display:grid;place-items:center;color:#8A6E10;flex:none">${svg.coin}</div>
+  <h3 style="font-size:19px;text-transform:uppercase;flex:1">${s.lang==='kz'?'Монеталар':'Монеты'}</h3>
+  <div onclick="closeCoinsModal()" data-hover style="width:32px;height:32px;border-radius:11px;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;cursor:pointer;color:var(--g8)">${svg.close}</div>
+  </div>
+  <div style="font-family:var(--fh);font-size:30px;color:#8A6E10;margin:6px 0 10px">${s.coins.toLocaleString('ru-RU')}</div>
+  <p style="margin:0;font-size:13px;line-height:1.6;color:var(--ink)">${s.lang==='kz'
+    ? 'Ойын ойнап, күнделікті сындарды орындап және жетістіктер ашып монета жина. Жинаған монеталарыңды алдағы уақытта жаңа жинақтар мен сыйлықтарға жұмсай аласың.'
+    : 'Играй, выполняй ежедневные испытания и открывай достижения, чтобы копить монеты. Их можно будет тратить на новые коллекции и награды.'}</p>
+  </div></div>`;
+}
+
+function overlayTodayFactModal(t,s){
+  if(!s.showTodayFactModal) return '';
+  const m = getTodayFact();
+  if(!m) return '';
+  return `<div style="position:absolute;inset:0;z-index:78;animation:fade .22s ease">
+  <div onclick="closeTodayFactModal()" style="position:absolute;inset:0;background:rgba(8,37,28,.5);backdrop-filter:blur(5px)"></div>
+  <div style="position:absolute;left:0;right:0;bottom:0;border-radius:34px 34px 0 0;background:var(--cream);box-shadow:0 -22px 50px -14px rgba(8,37,28,.5);animation:sheetin .38s cubic-bezier(.2,.9,.2,1) both;overflow:hidden">
+  <div style="width:42px;height:4px;border-radius:3px;background:var(--g3);margin:12px auto 0"></div>
+  <div style="padding:14px 22px 30px">
+  <div style="position:relative;height:172px;border-radius:24px;overflow:hidden;border:1px solid var(--line)">
+  <div role="img" aria-label="${esc(m.name[s.lang])}" style="position:absolute;inset:0;background-image:url('${m.img}');background-size:cover;background-position:center"></div>
+  <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(8,37,28,.72),transparent 55%)"></div>
+  <div style="position:absolute;left:16px;right:16px;bottom:13px">
+  <h3 style="font-size:24px;color:#fff;text-transform:uppercase;line-height:1.05">${esc(m.name[s.lang])}</h3>
+  <div style="display:flex;align-items:center;gap:5px;margin-top:6px;color:rgba(255,255,255,.75);font-size:11.5px;font-weight:700">${svg.pin}${esc(m.city[s.lang])}</div>
+  </div></div>
+  <p style="margin:15px 0 0;font-size:13.5px;line-height:1.62;color:var(--ink);text-wrap:pretty">${esc(m.fact[s.lang])}</p>
+  <div onclick="closeTodayFactModal()" data-hover style="margin-top:18px;height:52px;border-radius:18px;background:linear-gradient(150deg,#1B6B50,#0E3B2E);display:flex;align-items:center;justify-content:center;gap:9px;cursor:pointer">
+  <span style="font-family:var(--fh);font-size:18px;color:#fff;text-transform:uppercase;letter-spacing:.04em">${s.lang==='kz'?'Жабу':'Закрыть'}</span></div>
+  </div></div></div>`;
+}
+
 function overlayFriendsModal(t,s){
   if(!s.showFriendsModal) return '';
   const friendRows = (s.friends||[]).map(f=>`
@@ -2175,7 +2261,7 @@ function render(){
   else if(s.screen==='inviteCode') body = screenInviteCode(t,s);
   else if(s.screen==='addFriend') body = screenAddFriend(t,s);
   else if(s.screen==='profile') body = screenProfile(t,s);
-  body += overlaySheet(t,s) + overlayToast(s) + overlayDuelInvite(t,s) + overlayFriendsModal(t,s) + overlayNav(t,s);
+  body += overlaySheet(t,s) + overlayToast(s) + overlayDuelInvite(t,s) + overlayFriendsModal(t,s) + overlayCoinsModal(t,s) + overlayTodayFactModal(t,s) + overlayNav(t,s);
   document.getElementById('phone').innerHTML = body;
 }
 

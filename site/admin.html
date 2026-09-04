@@ -237,6 +237,7 @@ async function saveItem(e){
   f.fact_kz = document.getElementById('f_fact_kz').value.trim();
   f.fact_ru = document.getElementById('f_fact_ru').value.trim() || f.fact_kz;
   f.category_id = document.getElementById('f_category').value;
+  f.pair_key = document.getElementById('f_pair_key').value.trim() || null;
   f.sort_order = parseInt(document.getElementById('f_sort').value,10) || 0;
 
   if(!f.name_kz || !f.city_kz || !f.fact_kz){
@@ -265,7 +266,7 @@ async function saveItem(e){
     const row = {
       name_kz:f.name_kz, name_ru:f.name_ru, city_kz:f.city_kz, city_ru:f.city_ru,
       fact_kz:f.fact_kz, fact_ru:f.fact_ru, image_url:f.image_url, category_id:f.category_id,
-      sort_order:f.sort_order
+      pair_key:f.pair_key, sort_order:f.sort_order
     };
     if(f.id){
       const { error } = await sb.from('game_items').update(row).eq('id', f.id);
@@ -384,7 +385,11 @@ function renderForm(){
     </div>
     <div class="field"><label>Сипаттама (қазақша) *</label><textarea id="f_fact_kz" required>${esc(f.fact_kz)}</textarea></div>
     <div class="field"><label>Сипаттама (орысша)</label><textarea id="f_fact_ru" placeholder="бос болса қазақшасы алынады">${esc(f.fact_ru)}</textarea></div>
-    <div class="field" style="max-width:160px"><label>Реті</label><input id="f_sort" type="number" value="${esc(f.sort_order||0)}"></div>
+    <div class="grid2">
+      <div class="field"><label>Жұп кілті (міндетті емес)</label><input id="f_pair_key" value="${esc(f.pair_key||'')}" placeholder="мыс.: yasaui"></div>
+      <div class="field"><label>Реті</label><input id="f_sort" type="number" value="${esc(f.sort_order||0)}"></div>
+    </div>
+    <div class="hint" style="margin:-8px 0 14px">Бірдей кілт енгізілген екі зат ойында бір-бірімен жұп болады (мысалы, «Ясауи» аты мен кесенесінің суреті). Бос қалдырса — зат әдеттегідей өз суретінің көшірмесімен жұптасады.</div>
     <div style="display:flex;gap:10px;margin-top:6px">
       <button class="btn btn-primary" type="submit" ${loading?'disabled':''}>${loading?'<span class="spinner"></span>':'Сақтау'}</button>
       <button class="btn btn-ghost" type="button" onclick="cancelEdit()">Бас тарту</button>
