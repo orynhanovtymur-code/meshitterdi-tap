@@ -187,7 +187,7 @@ let state = { screen:'splash', lang:'kz', coins:1240, found:[], name:'Ойынш
   duelOpponentId:null, duelOpponentName:'', duelResult:null, duelResultFinalized:false, duelDeclinedMsg:'',
   duelPendingFriendId:null, duelPendingFriendName:'',
   duelStartedAt:null, duelJoinError:'', duelJoinLoading:false,
-  friends:[], friendsLoading:false, globalChannel:null, showFriendsModal:false,
+  friends:[], friendsLoading:false, globalChannel:null,
   showCoinsModal:false, showTodayFactModal:false, viewCategoryId:null, detailItemId:null,
   incomingDuelInvite:null,
   inviteLoading:false, inviteInfo:'', myFriendCode:null,
@@ -641,7 +641,7 @@ async function fetchFriends(){
   // fresh screen transition into Profile, which doesn't show one) just
   // restarts that screen's fade-in animation a second time, visible as
   // a flash.
-  const showLoading = state.screen==='duelMenu' || state.showFriendsModal;
+  const showLoading = state.screen==='duelMenu' || state.screen==='friendsList';
   state.friendsLoading = true;
   if(showLoading) render();
   try{
@@ -689,15 +689,6 @@ async function removeFriend(friendshipId){
   }
 }
 
-function openFriendsModal(){
-  state.showFriendsModal = true;
-  render();
-  fetchFriends();
-}
-function closeFriendsModal(){
-  state.showFriendsModal = false;
-  render();
-}
 
 function openCoinsModal(){ state.showCoinsModal = true; render(); }
 function closeCoinsModal(){ state.showCoinsModal = false; render(); }
@@ -1403,7 +1394,8 @@ function doShare(){
 function toggleLang(){ const lang = state.lang==='kz'?'ru':'kz'; persist({lang}); setState({lang}); }
 function goHome(){ setState({screen:'home'}); }
 function goBoard(){ setState({screen:'board'}); fetchLeaderboard(); }
-function goProfile(){ setState({screen:'profile'}); fetchFriends(); }
+function goProfile(){ setState({screen:'profile'}); }
+function goFriendsList(){ setState({screen:'friendsList'}); fetchFriends(); }
 function goCollection(){ setState({screen:'collection'}); }
 function quitGame(){ setState({screen:'levels',sheet:null}); }
 function replay(){
@@ -2073,15 +2065,6 @@ function screenProfile(t,s){
   const achList = computeAchievements(s);
   const achUnlockedCount = achList.filter(a=>a.unlocked).length;
   const achTotalCount = achList.length;
-  const friendMiniRows = (s.friends||[]).length
-    ? (s.friends||[]).map(f=>`
-      <div style="display:flex;align-items:center;gap:12px;padding:11px 13px;border-radius:18px;background:var(--g1);border:1px solid var(--g2);margin-bottom:8px">
-      <div style="width:38px;height:38px;border-radius:14px;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;font-family:var(--fh);font-size:14px;color:var(--g7);flex:none">${esc(initials(f.name))}</div>
-      <div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</div>
-      <div style="font-size:11px;color:var(--mut);margin-top:1px">${esc(f.city)}</div></div>
-      <button onclick="selectDuelFriend('${f.id}')" data-hover style="height:34px;padding:0 13px;border-radius:11px;background:linear-gradient(150deg,#1B6B50,#0E3B2E);color:#fff;font-family:var(--fh);font-size:12px;text-transform:uppercase;letter-spacing:.03em;cursor:pointer" ${s.duelLoading?'disabled':''}>${s.lang==='kz'?'Шақыру':'Позвать'}</button>
-      </div>`).join('')
-    : `<div style="text-align:center;padding:14px 4px;color:var(--mut);font-size:12px;line-height:1.6">${s.lang==='kz'?'Әзірге достарың жоқ. Кодпен қосылып немесе ойын құрып баста.':'Пока нет друзей. Начни с кода или создай игру.'}</div>`;
   return `<div class="sc" style="position:absolute;inset:0;overflow-y:auto;padding:24px 0 104px;animation:fade .28s ease">
   <div style="margin:6px 18px 0;position:relative;border-radius:28px;overflow:hidden;background:linear-gradient(160deg,#1B6B50,#0E3B2E 58%,#08251C);box-shadow:0 22px 44px -22px rgba(8,37,28,.6)">
   <div style="position:absolute;inset:0;opacity:.42;background:repeating-conic-gradient(from 22.5deg at 78% 6%,rgba(255,255,255,.06) 0deg 11deg,transparent 11deg 22.5deg)"></div>
@@ -2136,11 +2119,10 @@ function screenProfile(t,s){
   <div onclick="goJoinRoom()" data-hover style="flex:1;height:40px;border-radius:13px;background:var(--gold1);border:1px solid rgba(201,162,39,.32);display:grid;place-items:center;cursor:pointer">
   <span style="font-family:var(--fh);font-size:13px;color:#8A6E10;text-transform:uppercase;letter-spacing:.04em">${esc(t.inviteJoinBtn)}</span></div>
   </div>
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-top:18px;padding-top:14px;border-top:1px solid var(--line)">
-  <span style="font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--mut)">${s.lang==='kz'?'Достарым':'Мои друзья'} (${(s.friends||[]).length})</span>
-  <span onclick="openFriendsModal()" data-hover style="font-size:11px;font-weight:700;color:var(--g6);cursor:pointer">${s.lang==='kz'?'Басқару':'Управление'}</span>
+  <div onclick="goFriendsList()" data-hover style="display:flex;align-items:center;justify-content:space-between;margin-top:18px;padding-top:14px;border-top:1px solid var(--line);cursor:pointer">
+  <span style="font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--mut)">${s.lang==='kz'?'Достарым':'Мои друзья'}${s.friends&&s.friends.length?' ('+s.friends.length+')':''}</span>
+  <span style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:var(--g6)">${s.lang==='kz'?'Ашу':'Открыть'} ${svg.arrow.replaceAll('{{s}}','13').replace('{{c}}','#1B6B50')}</span>
   </div>
-  <div style="margin-top:10px">${friendMiniRows}</div>
   </div>
   <div onclick="toggleLang()" data-hover style="margin:20px 18px 0;height:52px;border-radius:18px;background:var(--paper);border:1px solid var(--line);display:flex;align-items:center;gap:11px;padding:0 16px;cursor:pointer">
   ${svg.globe}<span style="font-size:13.5px;font-weight:700">${esc(t.language)}</span>
@@ -2314,37 +2296,6 @@ function overlayItemDetailModal(t,s){
   </div></div></div>`;
 }
 
-function overlayFriendsModal(t,s){
-  if(!s.showFriendsModal) return '';
-  const friendRows = (s.friends||[]).map(f=>`
-    <div style="display:flex;align-items:center;gap:11px;padding:11px 13px;border-radius:18px;background:var(--g1);border:1px solid var(--g2);margin-bottom:7px">
-    <div style="width:36px;height:36px;border-radius:13px;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;font-family:var(--fh);font-size:13px;color:var(--g7);flex:none">${esc(initials(f.name))}</div>
-    <div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</div>
-    <div style="font-size:11px;color:var(--mut);margin-top:1px">${esc(f.city)}</div></div>
-    <button onclick="removeFriendById('${f.friendshipId}')" data-hover style="width:32px;height:32px;border-radius:11px;background:var(--danger-bg,#FDECEC);border:1px solid rgba(190,60,60,.25);display:grid;place-items:center;cursor:pointer;color:#A03232;flex:none">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
-    </div>`).join('');
-  return `<div style="position:absolute;inset:0;z-index:75;animation:fade .22s ease">
-  <div onclick="closeFriendsModal()" style="position:absolute;inset:0;background:rgba(8,37,28,.5);backdrop-filter:blur(5px)"></div>
-  <div style="position:absolute;left:0;right:0;bottom:0;max-height:78%;display:flex;flex-direction:column;border-radius:34px 34px 0 0;background:var(--cream);box-shadow:0 -22px 50px -14px rgba(8,37,28,.5);animation:sheetin .38s cubic-bezier(.2,.9,.2,1) both;overflow:hidden">
-  <div style="width:42px;height:4px;border-radius:3px;background:var(--g3);margin:12px auto 0;flex:none"></div>
-  <div style="display:flex;align-items:center;padding:14px 20px 10px;flex:none">
-  <h3 style="font-size:19px;text-transform:uppercase;flex:1">${s.lang==='kz'?'Достарым':'Мои друзья'}</h3>
-  <div onclick="closeFriendsModal()" data-hover style="width:32px;height:32px;border-radius:11px;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;cursor:pointer;color:var(--g8)">${svg.close}</div>
-  </div>
-  <div class="sc" style="overflow-y:auto;padding:4px 20px 26px">
-  <div style="display:flex;gap:8px;margin-bottom:14px">
-  <div onclick="closeFriendsModal();goInviteCode();" data-hover style="flex:1;height:38px;border-radius:12px;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;cursor:pointer">
-  <span style="font-size:11.5px;font-weight:800;color:var(--g7);text-transform:uppercase;letter-spacing:.03em">${s.lang==='kz'?'Менің кодым':'Мой код'}</span></div>
-  <div onclick="closeFriendsModal();goAddFriend();" data-hover style="flex:1;height:38px;border-radius:12px;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;cursor:pointer">
-  <span style="font-size:11.5px;font-weight:800;color:var(--g7);text-transform:uppercase;letter-spacing:.03em">${s.lang==='kz'?'Досыма қосылу':'Добавить друга'}</span></div>
-  </div>
-  ${s.friendsLoading ? `<div style="text-align:center;padding:24px 0;color:var(--mut);font-size:12.5px">${s.lang==='kz'?'Жүктелуде…':'Загрузка…'}</div>`
-    : (s.friends&&s.friends.length ? friendRows : `<div style="text-align:center;padding:24px 4px;color:var(--mut);font-size:12.5px;line-height:1.6">${s.lang==='kz'?'Әзірге достарың жоқ. «Менің кодым» немесе «Досыма қосылу» арқылы бастаңыз.':'Пока нет друзей. Начните через «Мой код» или «Добавить друга».'}</div>`)}
-  </div>
-  </div>
-  </div>`;
-}
 
 function overlayNav(t,s){
   const showNav = ['home','levels','stages','collection','collectionGrid','profile'].indexOf(s.screen)>-1;
@@ -2463,6 +2414,35 @@ function screenSettings(t,s){
   ${s.settingsError?`<div style="margin-top:14px;padding:12px 14px;border-radius:14px;background:#FDECEC;border:1px solid rgba(190,60,60,.28);color:#A03232;font-size:12.5px;line-height:1.5">${esc(s.settingsError)}</div>`:''}
   ${s.settingsInfo?`<div style="margin-top:14px;padding:12px 14px;border-radius:14px;background:var(--g1);border:1px solid var(--g2);color:var(--g7);font-size:12.5px;line-height:1.5">${esc(s.settingsInfo)}</div>`:''}
   </form>
+  </div>`;
+}
+
+function screenFriendsList(t,s){
+  const friends = s.friends||[];
+  const rows = friends.map(f=>`
+    <div style="display:flex;align-items:center;gap:12px;padding:13px;border-radius:20px;background:var(--paper);border:1px solid var(--line);margin-bottom:9px">
+    <div style="width:42px;height:42px;border-radius:15px;background:var(--g1);border:1px solid var(--g2);display:grid;place-items:center;font-family:var(--fh);font-size:15px;color:var(--g7);flex:none">${esc(initials(f.name))}</div>
+    <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</div>
+    <div style="font-size:11px;color:var(--mut);margin-top:1px">${esc(f.city)}</div></div>
+    <button onclick="selectDuelFriend('${f.id}')" data-hover style="height:36px;padding:0 13px;border-radius:12px;background:linear-gradient(150deg,#1B6B50,#0E3B2E);color:#fff;font-family:var(--fh);font-size:12.5px;text-transform:uppercase;letter-spacing:.03em;cursor:pointer;flex:none" ${s.duelLoading?'disabled':''}>${s.lang==='kz'?'Шақыру':'Позвать'}</button>
+    <button onclick="removeFriendById('${f.friendshipId}')" data-hover style="width:36px;height:36px;border-radius:12px;background:var(--danger-bg,#FDECEC);border:1px solid rgba(190,60,60,.25);display:grid;place-items:center;cursor:pointer;color:#A03232;flex:none">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </div>`).join('');
+  return `<div class="sc" style="position:absolute;inset:0;overflow-y:auto;padding:24px 0 40px;animation:fade .28s ease">
+  <div style="display:flex;align-items:center;gap:12px;padding:4px 20px 6px">
+  <div onclick="goProfile()" data-hover style="width:38px;height:38px;border-radius:13px;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;cursor:pointer;color:var(--g8)">${svg.back}</div>
+  <h3 style="font-size:24px;text-transform:uppercase">${s.lang==='kz'?'Достарым':'Мои друзья'}${friends.length?' ('+friends.length+')':''}</h3>
+  </div>
+  <div style="padding:18px 22px 0">
+  <div style="display:flex;gap:8px;margin-bottom:16px">
+  <div onclick="goInviteCode()" data-hover style="flex:1;height:38px;border-radius:12px;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;cursor:pointer">
+  <span style="font-size:11.5px;font-weight:800;color:var(--g7);text-transform:uppercase;letter-spacing:.03em">${s.lang==='kz'?'Менің кодым':'Мой код'}</span></div>
+  <div onclick="goAddFriend()" data-hover style="flex:1;height:38px;border-radius:12px;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;cursor:pointer">
+  <span style="font-size:11.5px;font-weight:800;color:var(--g7);text-transform:uppercase;letter-spacing:.03em">${s.lang==='kz'?'Досыма қосылу':'Добавить друга'}</span></div>
+  </div>
+  ${s.friendsLoading ? `<div style="text-align:center;padding:30px 0;color:var(--mut);font-size:13px">${s.lang==='kz'?'Жүктелуде…':'Загрузка…'}</div>`
+    : (friends.length ? rows : `<div style="text-align:center;padding:30px 10px;color:var(--mut);font-size:13px;line-height:1.6">${s.lang==='kz'?'Әзірге достарың жоқ. «Менің кодым» немесе «Досыма қосылу» арқылы бастаңыз.':'Пока нет друзей. Начни через «Мой код» или «Добавить друга».'}</div>`)}
+  </div>
   </div>`;
 }
 
@@ -2750,6 +2730,7 @@ function render(){
   else if(s.screen==='collectionGrid') body = screenCollectionGrid(t,s);
   else if(s.screen==='settings') body = screenSettings(t,s);
   else if(s.screen==='achievements') body = screenAchievements(t,s);
+  else if(s.screen==='friendsList') body = screenFriendsList(t,s);
   else if(s.screen==='duelMenu') body = screenDuelMenu(t,s);
   else if(s.screen==='duelLevels') body = screenDuelLevels(t,s);
   else if(s.screen==='duelLobby') body = screenDuelLobby(t,s);
@@ -2761,7 +2742,7 @@ function render(){
   else if(s.screen==='inviteCode') body = screenInviteCode(t,s);
   else if(s.screen==='addFriend') body = screenAddFriend(t,s);
   else if(s.screen==='profile') body = screenProfile(t,s);
-  body += overlaySheet(t,s) + overlayToast(s) + overlayDuelInvite(t,s) + overlayFriendsModal(t,s) + overlayCoinsModal(t,s) + overlayTodayFactModal(t,s) + overlayItemDetailModal(t,s) + overlayNav(t,s);
+  body += overlaySheet(t,s) + overlayToast(s) + overlayDuelInvite(t,s) + overlayCoinsModal(t,s) + overlayTodayFactModal(t,s) + overlayItemDetailModal(t,s) + overlayNav(t,s);
   document.getElementById('phone').innerHTML = body;
 }
 
