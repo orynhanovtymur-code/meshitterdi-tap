@@ -178,7 +178,7 @@ let state = { screen:'splash', lang:'kz', coins:1240, found:[], name:'Ойынш
   playerId:null, bestScore:0, leaderboard:null, boardFilter:'all', myRank:null, unlockedStage:1, currentStage:null,
   gamesPlayed:0, bestTimeSeconds:null,
   xp:0, hasFlawlessWin:false, hasFastWin:false, currentStreak:0, lastPlayedDate:null,
-  weeklyScore:0, weeklyScoreWeek:null, screenBeforeAchievements:'profile', screenBeforeCollection:'profile',
+  weeklyScore:0, weeklyScoreWeek:null, claimedAchievements:[], screenBeforeAchievements:'profile', screenBeforeCollection:'profile',
   categoryList:[], dailyChallenge:null,
   authMode:'register', authError:'', authInfo:'', authLoading:false,
   settingsError:'', settingsInfo:'', settingsLoading:false, prevScreen:'home',
@@ -238,7 +238,8 @@ function persistCloud(){
       current_streak: state.currentStreak||0,
       last_played_date: state.lastPlayedDate,
       weekly_score: state.weeklyScore||0,
-      weekly_score_week: state.weeklyScoreWeek
+      weekly_score_week: state.weeklyScoreWeek,
+      claimed_achievements: state.claimedAchievements||[]
     }).eq('id', state.playerId).then(({error})=>{
       if(error){
         console.warn('Supabase save failed:', error.message);
@@ -286,6 +287,7 @@ async function hydratePlayer(uid, defaults){
     state.lastPlayedDate = row.last_played_date || null;
     state.weeklyScore = row.weekly_score || 0;
     state.weeklyScoreWeek = row.weekly_score_week || null;
+    state.claimedAchievements = row.claimed_achievements || [];
     try{
       localStorage.setItem('mmt:lang', state.lang);
       localStorage.setItem('mmt:coins', String(state.coins));
@@ -1180,7 +1182,6 @@ function finalizeRound(completed){
   if(state.resultFinalized) return;
   state.resultFinalized = true;
   const s = state;
-  const beforeUnlocked = computeAchievements(state).filter(a=>a.unlocked).map(a=>a.id);
   const L = lvl(s.levelId);
   const totalPairs = s.cards.length/2;
   const matchedPairs = s.matched.length/2;
@@ -1232,12 +1233,7 @@ function finalizeRound(completed){
   if(completed) updateDailyChallenge({levelId:s.levelId, elapsed:s.elapsed, flawless:(s.moves===totalPairs), totalPairs});
   setState({sheet:null,screen:'victory',score:finalScore,stars,earned:completionReward,coins,xpGain});
   fetchMyRank();
-  const afterUnlocked = computeAchievements(state).filter(a=>a.unlocked);
-  const newlyUnlocked = afterUnlocked.filter(a=>beforeUnlocked.indexOf(a.id)===-1);
-  if(newlyUnlocked.length){
-    const names = newlyUnlocked.map(a=>a[state.lang==='kz'?'titleKz':'titleRu']).join(', ');
-    setTimeout(()=>toast((state.lang==='kz'?'Жаңа жетістік: ':'Новое достижение: ')+names), 900);
-  }
+  claimNewAchievements();
 }
 
 function closeSheet(){
@@ -1372,32 +1368,70 @@ function completedCategoryCount(s){
 }
 
 function computeAchievements(s){
-  return [
+  const claimed = s.claimedAchievements || [];
+  const list = [
     { id:'first_win',
       titleKz:'Алғашқы жеңіс', titleRu:'Первая победа',
       descKz:'Алғашқы ойынды аяқта.', descRu:'Заверши первую игру.',
-      icon:svg.trophy, progress:Math.min(s.gamesPlayed||0,1), total:1, unlocked:(s.gamesPlayed||0)>=1 },
+      icon:svg.trophy, progress:Math.min(s.gamesPlayed||0,1), target:1, unlocked:(s.gamesPlayed||0)>=1,
+      rewardCoins:50, rewardXP:50 },
     { id:'flawless',
       titleKz:'Зерек ойыншы', titleRu:'Внимательный игрок',
       descKz:'Ойынды қатесіз аяқта.', descRu:'Заверши игру без ошибок.',
-      icon:svg.starSolid, progress:s.hasFlawlessWin?1:0, total:1, unlocked:!!s.hasFlawlessWin },
+      icon:svg.starSolid, progress:s.hasFlawlessWin?1:0, target:1, unlocked:!!s.hasFlawlessWin,
+      rewardCoins:100, rewardXP:100 },
     { id:'fast',
       titleKz:'Жылдам ойыншы', titleRu:'Быстрый игрок',
       descKz:'60 секундтан аз уақытта аяқта.', descRu:'Заверши игру быстрее чем за 60 секунд.',
-      icon:svg.clock, progress:s.hasFastWin?1:0, total:1, unlocked:!!s.hasFastWin },
+      icon:svg.clock, progress:s.hasFastWin?1:0, target:1, unlocked:!!s.hasFastWin,
+      rewardCoins:100, rewardXP:100 },
     { id:'streak7',
       titleKz:'7 күн қатарынан', titleRu:'7 дней подряд',
       descKz:'7 күн қатарынан ойна.', descRu:'Играй 7 дней подряд.',
-      icon:svg.reward, progress:Math.min(s.currentStreak||0,7), total:7, unlocked:(s.currentStreak||0)>=7 },
+      icon:svg.reward, progress:Math.min(s.currentStreak||0,7), target:7, unlocked:(s.currentStreak||0)>=7,
+      rewardCoins:200, rewardXP:200 },
     { id:'explorer',
       titleKz:'Зерттеуші', titleRu:'Исследователь',
       descKz:'Бір жинақты толық аяқта.', descRu:'Собери одну коллекцию полностью.',
-      icon:svg.mosqueThin, progress:Math.min(completedCategoryCount(s),1), total:1, unlocked:completedCategoryCount(s)>=1 },
+      icon:svg.mosqueThin, progress:Math.min(completedCategoryCount(s),1), target:1, unlocked:completedCategoryCount(s)>=1,
+      rewardCoins:150, rewardXP:150 },
     { id:'collector',
       titleKz:'Жинақтаушы', titleRu:'Коллекционер',
       descKz:'10 карточка аш.', descRu:'Открой 10 карточек.',
-      icon:svg.invite, progress:Math.min(s.found.length||0,10), total:10, unlocked:(s.found.length||0)>=10 }
+      icon:svg.invite, progress:Math.min(s.found.length||0,10), target:10, unlocked:(s.found.length||0)>=10,
+      rewardCoins:100, rewardXP:100 }
   ];
+  list.forEach(a=>{
+    const rec = claimed.find(c=>c.id===a.id);
+    a.unlockedAt = rec ? rec.unlockedAt : null;
+  });
+  return list;
+}
+
+// Grants each achievement's one-time coin/XP reward exactly once, ever.
+// Persisted in players.claimed_achievements, so a refresh or a later
+// session can never re-trigger the same reward for the same player.
+function claimNewAchievements(){
+  const list = computeAchievements(state);
+  const claimed = state.claimedAchievements || [];
+  const claimedIds = claimed.map(c=>c.id);
+  const newlyUnlocked = list.filter(a=>a.unlocked && claimedIds.indexOf(a.id)===-1);
+  if(!newlyUnlocked.length) return;
+  const now = new Date().toISOString();
+  newlyUnlocked.forEach(a=>{
+    state.coins = (state.coins||0) + (a.rewardCoins||0);
+    state.xp = (state.xp||0) + (a.rewardXP||0);
+    claimed.push({id:a.id, unlockedAt:now});
+  });
+  state.claimedAchievements = claimed;
+  persist({coins:state.coins, xp:state.xp, claimedAchievements:state.claimedAchievements});
+  newlyUnlocked.forEach((a,i)=>{
+    setTimeout(()=>{
+      const title = state.lang==='kz'?a.titleKz:a.titleRu;
+      const msg = (state.lang==='kz'?'Жаңа жетістік! ':'Новое достижение! ')+title+' — +'+a.rewardCoins+' '+(state.lang==='kz'?'монета':'монет')+', +'+a.rewardXP+' XP';
+      toast(msg);
+    }, 900 + i*2800);
+  });
 }
 
 function isoWeekLabel(d){
@@ -2232,15 +2266,26 @@ function screenAuth(t,s){
 
 function screenAchievements(t,s){
   const list = computeAchievements(s);
+  const unlockedCount = list.filter(a=>a.unlocked).length;
+  const totalCount = list.length;
+  const pctOverall = totalCount ? Math.round(unlockedCount/totalCount*100) : 0;
+  const fmtDate = iso=>{
+    try{ return new Date(iso).toLocaleDateString(s.lang==='kz'?'kk-KZ':'ru-RU', {day:'numeric', month:'long', year:'numeric'}); }
+    catch(e){ return ''; }
+  };
   const rows = list.map(a=>{
-    const pct = a.total ? Math.round(a.progress/a.total*100) : 0;
-    return `<div style="display:flex;align-items:center;gap:14px;padding:14px;border-radius:22px;background:${a.unlocked?'var(--paper)':'var(--g1)'};border:1px solid var(--line);margin-bottom:10px;${a.unlocked?'':'opacity:.6'}">
+    const pct = a.target ? Math.round(a.progress/a.target*100) : 0;
+    return `<div style="display:flex;align-items:center;gap:14px;padding:14px;border-radius:22px;background:${a.unlocked?'var(--paper)':'var(--g1)'};border:1px solid ${a.unlocked?'rgba(46,131,101,.32)':'var(--line)'};margin-bottom:10px;${a.unlocked?'':'opacity:.62'}">
     <div style="width:46px;height:46px;border-radius:16px;display:grid;place-items:center;flex:none;background:${a.unlocked?'linear-gradient(150deg,#E7C765,#C9A227)':'var(--g2)'};color:${a.unlocked?'#3A2D06':'var(--mut)'}">${a.icon}</div>
     <div style="flex:1;min-width:0">
     <div style="font-family:var(--fh);font-size:16px;line-height:1.1">${esc(s.lang==='kz'?a.titleKz:a.titleRu)}</div>
     <div style="font-size:11.5px;color:var(--mut);margin-top:3px;line-height:1.4">${esc(s.lang==='kz'?a.descKz:a.descRu)}</div>
-    ${a.total>1?`<div style="height:4px;border-radius:3px;background:var(--g2);overflow:hidden;margin-top:8px"><div style="height:100%;width:${pct}%;border-radius:3px;background:linear-gradient(90deg,#C9A227,#E7C765)"></div></div>
-    <div style="font-size:10px;color:var(--mut);margin-top:4px">${a.progress}/${a.total}</div>`:''}
+    <div style="height:4px;border-radius:3px;background:var(--g2);overflow:hidden;margin-top:8px"><div style="height:100%;width:${pct}%;border-radius:3px;background:${a.unlocked?'linear-gradient(90deg,#5AA184,#2E8365)':'linear-gradient(90deg,#C9A227,#E7C765)'}"></div></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px">
+    <span style="font-size:10px;color:var(--mut)">${a.progress}/${a.target}</span>
+    <span style="font-size:10px;font-weight:800;color:#8A6E10">+${a.rewardCoins} ${s.lang==='kz'?'монета':'монет'} · +${a.rewardXP} XP</span>
+    </div>
+    ${a.unlocked&&a.unlockedAt?`<div style="font-size:10px;color:#2E8365;margin-top:5px;font-weight:700">${s.lang==='kz'?'Ашылды: ':'Открыто: '}${esc(fmtDate(a.unlockedAt))}</div>`:''}
     </div>
     ${a.unlocked?`<div style="color:#2E8365;flex:none">${svg.check}</div>`:''}
     </div>`;
@@ -2249,6 +2294,15 @@ function screenAchievements(t,s){
   <div style="display:flex;align-items:center;gap:12px;padding:4px 20px 6px">
   <div onclick="goProfile()" data-hover style="width:38px;height:38px;border-radius:13px;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;cursor:pointer;color:var(--g8)">${svg.back}</div>
   <h3 style="font-size:24px;text-transform:uppercase">${s.lang==='kz'?'Жетістіктер':'Достижения'}</h3>
+  </div>
+  <div style="padding:16px 22px 4px">
+  <div style="display:flex;justify-content:space-between;align-items:baseline">
+  <span style="font-size:13px;font-weight:700;color:var(--g8)">${unlockedCount} / ${totalCount} ${s.lang==='kz'?'ашылды':'открыто'}</span>
+  <span style="font-size:11.5px;font-weight:700;color:var(--mut)">${pctOverall}%</span>
+  </div>
+  <div style="height:8px;border-radius:5px;background:var(--g2);overflow:hidden;margin-top:8px">
+  <div style="height:100%;width:${pctOverall}%;border-radius:5px;background:linear-gradient(90deg,#C9A227,#E7C765)"></div>
+  </div>
   </div>
   <div style="padding:18px 22px 0">${rows}</div>
   </div>`;
