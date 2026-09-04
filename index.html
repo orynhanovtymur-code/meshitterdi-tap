@@ -217,6 +217,7 @@ function persist(o){ try{
 
 let cloudReady = false;
 let cloudSaveTimer = null;
+let cloudSaveFailNotified = false;
 function persistCloud(){
   if(!sb || !cloudReady || !state.playerId) return;
   clearTimeout(cloudSaveTimer);
@@ -239,7 +240,15 @@ function persistCloud(){
       weekly_score: state.weeklyScore||0,
       weekly_score_week: state.weeklyScoreWeek
     }).eq('id', state.playerId).then(({error})=>{
-      if(error) console.warn('Supabase save failed:', error.message);
+      if(error){
+        console.warn('Supabase save failed:', error.message);
+        if(!cloudSaveFailNotified){
+          cloudSaveFailNotified = true;
+          toast(state.lang==='kz' ? 'Сақтау мүмкін болмады. Байланысты тексеріңіз.' : 'Не удалось сохранить. Проверьте соединение.');
+        }
+      } else {
+        cloudSaveFailNotified = false;
+      }
     });
   }, 600);
 }
