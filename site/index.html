@@ -636,7 +636,14 @@ async function submitAddFriend(e){
 
 async function fetchFriends(){
   if(!sb || !state.playerId) return;
-  state.friendsLoading = true; render();
+  // Only screens that actually show a loading spinner for this need the
+  // extra render here -- firing it unconditionally (e.g. right after a
+  // fresh screen transition into Profile, which doesn't show one) just
+  // restarts that screen's fade-in animation a second time, visible as
+  // a flash.
+  const showLoading = state.screen==='duelMenu' || state.showFriendsModal;
+  state.friendsLoading = true;
+  if(showLoading) render();
   try{
     const { data, error } = await sb.from('friend_requests')
       .select('id,from_id,to_id')
