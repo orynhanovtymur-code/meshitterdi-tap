@@ -191,7 +191,7 @@ let state = { screen:'splash', lang:'kz', coins:1240, found:[], name:'Ойынш
   incomingDuelInvite:null,
   inviteLoading:false, inviteInfo:'', myFriendCode:null,
   addFriendError:'', addFriendInfo:'', addFriendLoading:false,
-  levelId:'easy', cards:[], flipped:[], matched:[], justMatched:[],
+  levelId:'easy', pendingLevelId:'easy', cards:[], flipped:[], matched:[], justMatched:[],
   moves:0, left:90, elapsed:0, sheet:null, score:0, earned:0, xpGain:0, stars:3, toast:null, locked:false,
   firstNewCardThisGame:null };
 
@@ -1440,6 +1440,7 @@ async function loadDefaultItems(){
 const mosquesReady = loadDefaultItems();
 
 function goLevels(){ setState({screen:'levels'}); }
+function chooseLevelStep1(id){ setState({pendingLevelId:id, screen:'stages'}); }
 
 function mm(n){ return Math.floor(n/60)+':'+String(n%60).padStart(2,'0'); }
 function initials(n){ const w=n.trim().split(/\s+/); return (w.length>1? w[0][0]+w[1][0] : n.slice(0,2)).toUpperCase(); }
@@ -1555,7 +1556,10 @@ function screenLevels(t,s){
     let sh=[]; const rows=Math.ceil(pairs*2/l.cols);
     for(let r=0;r<rows;r++) for(let c=0;c<l.cols;c++) sh.push((c*11)+'px '+(r*11)+'px 0 0 rgba(255,255,255,.85)');
     const glyph = 'position:relative;width:7px;height:7px;border-radius:2px;background:transparent;transform:translate(-'+((l.cols-1)*11/2)+'px,-'+((rows-1)*11/2)+'px);box-shadow:'+sh.join(',');
-    return `<div onclick="start('${l.id}')" data-hover style="position:relative;border-radius:28px;overflow:hidden;cursor:pointer;background:linear-gradient(158deg,${l.g1},${l.g2} 68%);box-shadow:0 22px 40px -22px ${l.g2}e6">
+    const metaLine = l.id==='hard'
+      ? `${pairs} ${s.lang==='kz'?'жұп':'пар'} · ${mm(l.seconds)} · ×2 ${s.lang==='kz'?'ұпай':'очков'}`
+      : `${pairs} ${s.lang==='kz'?'жұп':'пар'} · ${mm(l.seconds)} · +${l.reward}`;
+    return `<div onclick="chooseLevelStep1('${l.id}')" data-hover style="position:relative;border-radius:28px;overflow:hidden;cursor:pointer;background:linear-gradient(158deg,${l.g1},${l.g2} 68%);box-shadow:0 22px 40px -22px ${l.g2}e6">
     <div style="position:absolute;inset:0;opacity:.5;background:repeating-conic-gradient(from 22.5deg at 88% 8%,rgba(255,255,255,.055) 0deg 11deg,transparent 11deg 22.5deg)"></div>
     <i style="position:absolute;top:11px;left:11px;width:12px;height:12px;border-top:1px solid rgba(255,255,255,.28);border-left:1px solid rgba(255,255,255,.28)"></i>
     <i style="position:absolute;bottom:11px;right:11px;width:12px;height:12px;border-bottom:1px solid rgba(255,255,255,.28);border-right:1px solid rgba(255,255,255,.28)"></i>
@@ -1567,10 +1571,7 @@ function screenLevels(t,s){
     <div style="display:flex;align-items:center;gap:7px">
     <h4 style="font-size:27px;color:#fff;text-transform:uppercase">${esc(t[l.id])}</h4>
     <span style="height:19px;padding:0 7px;border-radius:6px;background:rgba(255,255,255,.14);color:rgba(255,255,255,.8);font-size:9.5px;font-weight:800;letter-spacing:.12em;display:grid;place-items:center">${l.cols}×${rows}</span></div>
-    <p style="margin:7px 0 0;font-size:12.5px;line-height:1.55;color:rgba(255,255,255,.6);text-wrap:pretty">${esc(t[l.id+'Desc'])}</p>
-    <div style="display:flex;gap:14px;margin-top:12px">
-    <span style="display:flex;align-items:center;gap:5px;color:rgba(255,255,255,.85);font-size:11.5px;font-weight:700">${svg.clockThin} ${mm(l.seconds)}</span>
-    <span style="display:flex;align-items:center;gap:5px;color:#E7C765;font-size:11.5px;font-weight:700">${svg.reward} +${l.reward}</span></div></div>
+    <div style="margin-top:8px;font-size:12.5px;font-weight:700;color:rgba(255,255,255,.75);letter-spacing:.01em">${esc(metaLine)}</div></div>
     ${svg.arrow.replaceAll('{{s}}','20').replace('{{c}}','rgba(255,255,255,.55)')}
     </div></div>`;
   }).join('');
@@ -1584,13 +1585,15 @@ function screenLevels(t,s){
   <div style="margin:18px 18px 0;padding:15px 17px;border-radius:22px;background:var(--paper);border:1px solid var(--line);display:flex;align-items:center;gap:13px">
   <div style="width:38px;height:38px;border-radius:13px;background:var(--gold1);border:1px solid rgba(201,162,39,.3);display:grid;place-items:center;color:#8A6E10;flex:none">${svg.tip}</div>
   <p style="margin:0;font-size:12px;line-height:1.55;color:var(--mut);text-wrap:pretty">${esc(t.levelTip)}</p></div>
-  ${screenStages(t,s)}
   </div>`;
 }
 
 function screenStages(t,s){
   const stages = totalStages();
   const unlocked = s.unlockedStage || 1;
+  const L = lvl(s.pendingLevelId||'easy');
+  const pairs = Math.max(1, Math.min(L.pairs, ITEMS.length));
+  const rows = Math.ceil(pairs*2/L.cols);
   const doneIcon = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l5 5 10-11"/></svg>';
   const tiles = Array.from({length:stages}, (_,i)=>i+1).map(n=>{
     const isLocked = n > unlocked;
@@ -1604,12 +1607,22 @@ function screenStages(t,s){
     <span style="font-size:8px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:${fg}">${isLocked?(s.lang==='kz'?'құлыптаулы':'заблокирован'):(isDone?(s.lang==='kz'?'аяқталды':'пройден'):(s.lang==='kz'?'ағымдағы':'текущий'))}</span>
     </div>`;
   }).join('');
-  return `<div style="margin:26px 18px 0">
+  return `<div class="sc" style="position:absolute;inset:0;overflow-y:auto;padding:24px 0 104px;animation:fade .28s ease">
+  <div style="display:flex;align-items:center;gap:12px;padding:4px 20px 6px">
+  <div onclick="goLevels()" data-hover style="width:38px;height:38px;border-radius:13px;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;cursor:pointer;color:var(--g8)">${svg.back}</div>
+  <div style="flex:1">
+  <span style="font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--mut)">${s.lang==='kz'?'2-қадам':'Шаг 2'}</span>
+  <h3 style="font-size:26px;text-transform:uppercase;margin-top:2px">${s.lang==='kz'?'Кезеңді таңда':'Выбери этап'}</h3></div></div>
+  <div style="margin:14px 18px 0;display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 12px;border-radius:10px;background:var(--g1);border:1px solid var(--g2)">
+  <span style="font-size:11.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--g7)">${esc(t[L.id])} · ${L.cols}×${rows}</span>
+  </div>
+  <div style="margin:18px 18px 0">
   <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px">
   <h3 style="font-size:22px;text-transform:uppercase">${s.lang==='kz'?'Кезеңдер':'Этапы'}</h3>
   <span style="font-size:11.5px;font-weight:700;color:var(--mut)">${unlocked>stages?stages:unlocked}/${stages}</span>
   </div>
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:9px">${tiles}</div>
+  </div>
   </div>`;
 }
 
@@ -2088,7 +2101,7 @@ function overlayFriendsModal(t,s){
 }
 
 function overlayNav(t,s){
-  const showNav = ['home','levels','collection','collectionGrid','profile'].indexOf(s.screen)>-1;
+  const showNav = ['home','levels','stages','collection','collectionGrid','profile'].indexOf(s.screen)>-1;
   if(!showNav) return '';
   const accent = '#0E3B2E';
   const nav = (on)=> 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;height:58px;border-radius:20px;cursor:pointer;transition:background .18s,color .18s;'+
@@ -2096,7 +2109,7 @@ function overlayNav(t,s){
   return `<div style="position:absolute;left:0;right:0;bottom:0;z-index:50;padding:0 14px calc(12px + env(safe-area-inset-bottom));pointer-events:none">
   <div style="pointer-events:auto;height:70px;border-radius:26px;background:rgba(255,255,255,.82);backdrop-filter:blur(18px) saturate(1.4);border:1px solid rgba(255,255,255,.75);box-shadow:0 -2px 0 rgba(8,37,28,.03),0 18px 38px -16px rgba(8,37,28,.42);display:grid;grid-template-columns:repeat(4,1fr);align-items:center;padding:0 6px">
   <div onclick="goHome()" style="${nav(s.screen==='home')}">${svg.home.replaceAll('{{s}}','21')}<span style="font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase">${esc(t.home)}</span></div>
-  <div onclick="goLevels()" style="${nav(s.screen==='levels'||s.screen==='game')}">${svg.games}<span style="font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase">${esc(t.games)}</span></div>
+  <div onclick="goLevels()" style="${nav(s.screen==='levels'||s.screen==='stages'||s.screen==='game')}">${svg.games}<span style="font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase">${esc(t.games)}</span></div>
   <div onclick="goCollection()" style="${nav(s.screen==='collection'||s.screen==='collectionGrid')}">${svg.collection}<span style="font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase">${esc(t.navColl)}</span></div>
   <div onclick="goProfile()" style="${nav(s.screen==='profile')}">${svg.profile}<span style="font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase">${esc(t.profile)}</span></div>
   </div></div>`;
@@ -2368,6 +2381,7 @@ function render(){
   else if(s.screen==='auth') body = screenAuth(t,s);
   else if(s.screen==='home') body = screenHome(t,s);
   else if(s.screen==='levels') body = screenLevels(t,s);
+  else if(s.screen==='stages') body = screenStages(t,s);
   else if(s.screen==='game') body = screenGame(t,s);
   else if(s.screen==='victory') body = screenVictory(t,s);
   else if(s.screen==='board') body = screenBoard(t,s);
