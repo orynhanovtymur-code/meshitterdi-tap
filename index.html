@@ -192,7 +192,7 @@ let state = { screen:'splash', lang:'kz', coins:1240, found:[], name:'Ойынш
   incomingDuelInvite:null,
   inviteLoading:false, inviteInfo:'', myFriendCode:null,
   addFriendError:'', addFriendInfo:'', addFriendLoading:false,
-  levelId:'easy', pendingLevelId:'easy', cards:[], flipped:[], matched:[], justMatched:[],
+  levelId:'easy', pendingLevelId:'easy', currentStageLevelId:'easy', cards:[], flipped:[], matched:[], justMatched:[],
   moves:0, left:90, elapsed:0, sheet:null, score:0, earned:0, xpGain:0, stars:3, toast:null, locked:false,
   firstNewCardThisGame:null, resultFinalized:false };
 
@@ -1149,8 +1149,12 @@ async function submitSettings(e){
 }
 
 function setState(patch){ Object.assign(state, patch); render(); }
+// A "stage" round always runs with the pairs/time/reward/scoring of
+// whichever difficulty was picked in step 1 (state.currentStageLevelId,
+// captured once when the round starts) -- stages differ only in WHICH
+// items appear, not in how the round is scored or timed.
 function lvl(id){
-  if(id==='stage') return {id:'stage', pairs:STAGE_PAIRS, cols:STAGE_COLS, seconds:STAGE_SECONDS, reward:STAGE_REWARD, g1:'#5AA184', g2:'#2E8365'};
+  if(id==='stage') return LEVELS.find(l=>l.id===state.currentStageLevelId) || LEVELS[0];
   return LEVELS.find(l=>l.id===id) || LEVELS[0];
 }
 
@@ -1185,19 +1189,19 @@ function start(id){
     moves:0,left:L.seconds,elapsed:0,sheet:null,score:0,locked:false});
 }
 
-const STAGE_PAIRS = 6;
-const STAGE_SECONDS = 90;
-const STAGE_REWARD = 150;
-const STAGE_COLS = 3;
+function stagePairs(){
+  return lvl(state.pendingLevelId||'easy').pairs;
+}
 
 function totalStages(){
-  return Math.max(1, Math.ceil(ITEMS.length / STAGE_PAIRS));
+  return Math.max(1, Math.ceil(ITEMS.length / stagePairs()));
 }
 
 function stageItems(stageIndex){
-  const from = (stageIndex-1)*STAGE_PAIRS;
-  let slice = ITEMS.slice(from, from+STAGE_PAIRS);
-  if(!slice.length) slice = ITEMS.slice(0, STAGE_PAIRS);
+  const pairs = stagePairs();
+  const from = (stageIndex-1)*pairs;
+  let slice = ITEMS.slice(from, from+pairs);
+  if(!slice.length) slice = ITEMS.slice(0, pairs);
   return slice;
 }
 
@@ -1211,13 +1215,15 @@ function explainLockedStage(stageIndex){
 
 function startStage(stageIndex){
   if(stageIndex > (state.unlockedStage||1)) return;
+  state.currentStageLevelId = state.pendingLevelId || 'easy';
   const pool = stageItems(stageIndex);
   const deck = dealDeck(pool, pool.length);
+  const L = lvl('stage');
   state.currentStage = stageIndex;
   state.firstNewCardThisGame = null;
   state.resultFinalized = false;
   setState({screen:'game',levelId:'stage',cards:deck,flipped:[],matched:[],justMatched:[],
-    moves:0,left:STAGE_SECONDS,elapsed:0,sheet:null,score:0,locked:false});
+    moves:0,left:L.seconds,elapsed:0,sheet:null,score:0,locked:false});
 }
 
 function showSheet(m, points){
