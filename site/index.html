@@ -186,6 +186,7 @@ let state = { screen:'splash', lang:'kz', coins:1240, found:[], name:'Ойынш
   duelCountdownN:3, duelDeckIds:[], duelFlipped:[], duelMatches:[], duelLocked:false,
   duelOpponentId:null, duelOpponentName:'', duelResult:null, duelResultFinalized:false, duelDeclinedMsg:'',
   duelPendingFriendId:null, duelPendingFriendName:'',
+  duelStartedAt:null, duelJoinError:'', duelJoinLoading:false,
   friends:[], friendsLoading:false, globalChannel:null, showFriendsModal:false,
   showCoinsModal:false, showTodayFactModal:false, viewCategoryId:null, detailItemId:null,
   incomingDuelInvite:null,
@@ -487,10 +488,13 @@ async function fetchMyRank(){
 }
 
 function genRoomCode(){
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let s = '';
-  for(let i=0;i<6;i++) s += chars[Math.floor(Math.random()*chars.length)];
+  for(let i=0;i<6;i++) s += Math.floor(Math.random()*10);
   return s;
+}
+function formatRoomCode(code){
+  code = code || '------';
+  return code.length===6 ? code.slice(0,3)+' '+code.slice(3) : code;
 }
 
 function teardownDuelChannel(){
@@ -732,6 +736,101 @@ function leaveDuel(){
   setState({screen:'home'});
 }
 
+async function createDuelRoom(){
+  if(!sb || !state.playerId || state.duelLoading) return;
+  state.duelError=''; state.duelLoading=true; render();
+  const L = lvl('medium');
+  const pairs = Math.max(1, Math.min(L.pairs, ITEMS.length));
+  try{
+    const code = genRoomCode();
+    const { data: room, error } = await sb.from('duel_rooms')
+      .insert({ host_id: state.playerId, code, status:'waiting', pairs })
+      .select().maybeSingle();
+    if(error) throw error;
+    state.duelRoom = room;
+    state.duelRole = 'host';
+    state.duelOpponentId = null;
+    state.duelOpponentName = '';
+    state.duelResultFinalized = false;
+    subscribeDuelRoom(room.id);
+    state.duelLoading = false;
+    setState({screen:'duelLobby'});
+  }catch(err){
+    state.duelLoading = false;
+    state.duelError = err.message || String(err);
+    render();
+  }
+}
+
+async function hostStartRoomCountdown(){
+  const room = state.duelRoom;
+  if(!room || !room.guest_id || state.duelLoading) return;
+  state.duelLoading = true; render();
+  try{
+    const { data: updated, error } = await sb.from('duel_rooms')
+      .update({ status:'countdown' })
+      .eq('id', room.id).eq('status','waiting')
+      .select().maybeSingle();
+    if(error) throw error;
+    state.duelLoading = false;
+    if(updated){ state.duelRoom = updated; enterDuelCountdown(); }
+    else render();
+  }catch(e){
+    state.duelLoading = false;
+    toast(e.message || String(e));
+  }
+}
+
+function goJoinRoom(){
+  state.duelJoinError=''; state.duelJoinLoading=false;
+  setState({screen:'duelJoin'});
+}
+
+async function submitJoinRoom(e){
+  if(e && e.preventDefault) e.preventDefault();
+  if(!sb || !state.playerId || state.duelJoinLoading) return;
+  const input = document.getElementById('room_code_input');
+  const code = (input ? input.value : '').replace(/\D/g,'').slice(0,6);
+  if(code.length!==6){
+    state.duelJoinError = state.lang==='kz' ? '6 цифрды толық енгіз.' : 'Введите все 6 цифр.';
+    render(); return;
+  }
+  state.duelJoinLoading = true; state.duelJoinError=''; render();
+  try{
+    const { data: room, error } = await sb.from('duel_rooms').select('*').eq('code', code).maybeSingle();
+    if(error) throw error;
+    if(!room){
+      state.duelJoinError = state.lang==='kz' ? 'Бөлме табылмады. Кодты қайта тексер.' : 'Комната не найдена. Проверьте код.';
+      state.duelJoinLoading = false; render(); return;
+    }
+    if(room.status!=='waiting' || room.guest_id){
+      state.duelJoinError = state.lang==='kz' ? 'Бұл бөлмеге қатысушылар жиналып болды.' : 'В этой комнате уже собрались участники.';
+      state.duelJoinLoading = false; render(); return;
+    }
+    const { data: updated, error: err2 } = await sb.from('duel_rooms')
+      .update({ guest_id: state.playerId })
+      .eq('id', room.id).is('guest_id', null).eq('status','waiting')
+      .select().maybeSingle();
+    if(err2) throw err2;
+    if(!updated){
+      state.duelJoinError = state.lang==='kz' ? 'Бұл бөлмеге қатысушылар жиналып болды.' : 'В этой комнате уже собрались участники.';
+      state.duelJoinLoading = false; render(); return;
+    }
+    state.duelRoom = updated;
+    state.duelRole = 'guest';
+    state.duelOpponentId = updated.host_id;
+    state.duelResultFinalized = false;
+    subscribeDuelRoom(updated.id);
+    state.duelJoinLoading = false;
+    setState({screen:'duelLobby'});
+    loadInviteHostName(updated.host_id).then(name=>{ state.duelOpponentName = name; render(); });
+  }catch(e){
+    state.duelJoinLoading = false;
+    state.duelJoinError = e.message || String(e);
+    render();
+  }
+}
+
 function selectDuelFriend(id){
   const f = (state.friends||[]).find(x=>x.id===id);
   if(!f) return;
@@ -823,9 +922,15 @@ function onDuelRoomUpdate(row){
     toast(name + (state.lang==='kz' ? ' ойыннан шықты.' : ' вышел из игры.'));
     return;
   }
+  if(row.status==='waiting' && row.guest_id && state.duelRole==='host' && !state.duelOpponentId && state.screen==='duelLobby'){
+    state.duelOpponentId = row.guest_id;
+    loadInviteHostName(row.guest_id).then(name=>{ state.duelOpponentName = name; render(); });
+    render();
+    return;
+  }
   if(row.status==='countdown' && (prevStatus==='invited' || prevStatus==='waiting')){
     if(!state.duelOpponentId) state.duelOpponentId = state.duelRole==='host' ? row.guest_id : row.host_id;
-    if(state.screen==='duelWait') enterDuelCountdown();
+    if(state.screen==='duelWait' || state.screen==='duelLobby') enterDuelCountdown();
     return;
   }
   if(row.status==='playing' && state.screen==='duelCountdown'){
@@ -836,7 +941,7 @@ function onDuelRoomUpdate(row){
     computeDuelResult(row);
     return;
   }
-  if(state.screen==='duelWait') render();
+  if(state.screen==='duelWait' || state.screen==='duelLobby') render();
 }
 
 function enterDuelCountdown(){
@@ -881,6 +986,7 @@ function startDuelGameFromRoom(row){
   state.duelLocked = false;
   state.duelResult = null;
   state.duelResultFinalized = false;
+  state.duelStartedAt = row.updated_at ? new Date(row.updated_at).getTime() : Date.now();
   if(!state.duelOpponentId) state.duelOpponentId = state.duelRole==='host' ? row.guest_id : row.host_id;
   setState({screen:'duelGame'});
 }
@@ -967,9 +1073,17 @@ function computeDuelResult(row){
   state.duelRoom = row;
   if(state.duelResultFinalized){ render(); return; }
   state.duelResultFinalized = true;
-  const myCount = state.duelMatches.filter(m=>m.claimed_by===state.playerId).length;
-  const oppCount = state.duelMatches.length - myCount;
-  state.duelResult = { myCount, oppCount, win: myCount>oppCount, draw: myCount===oppCount };
+  const myClaims = state.duelMatches.filter(m=>m.claimed_by===state.playerId);
+  const oppClaims = state.duelMatches.filter(m=>m.claimed_by!==state.playerId);
+  const myCount = myClaims.length;
+  const oppCount = oppClaims.length;
+  const started = state.duelStartedAt || Date.now();
+  const lastClaimSeconds = claims => claims.length
+    ? Math.max(0, Math.round((Math.max.apply(null, claims.map(c=>new Date(c.claimed_at).getTime())) - started)/1000))
+    : 0;
+  const myTime = lastClaimSeconds(myClaims);
+  const oppTime = lastClaimSeconds(oppClaims);
+  state.duelResult = { myCount, oppCount, myTime, oppTime, win: myCount>oppCount, draw: myCount===oppCount };
   if(myCount>oppCount){
     const coins = state.coins + 150;
     state.coins = coins;
@@ -2018,12 +2132,12 @@ function screenProfile(t,s){
   <div style="display:flex;align-items:center;gap:14px">
   <div style="width:44px;height:44px;border-radius:16px;background:var(--g1);border:1px solid var(--g2);display:grid;place-items:center;color:var(--g7);flex:none">${svg.invite}</div>
   <div style="flex:1;min-width:0"><div style="font-family:var(--fh);font-size:19px;line-height:1.1">${esc(t.invite)}</div>
-  <div style="font-size:11.5px;color:var(--mut);margin-top:3px;line-height:1.45">${s.lang==='kz'?'Досыңды шақыр немесе кодпен қосыл':'Пригласи друга или войди по коду'}</div></div>
+  <div style="font-size:11.5px;color:var(--mut);margin-top:3px;line-height:1.45">${s.lang==='kz'?'Бөлме құрып немесе кодпен қосылып ойна':'Создай комнату или войди по коду'}</div></div>
   </div>
   <div style="display:flex;gap:8px;margin-top:14px">
-  <div onclick="goInviteCode()" data-hover style="flex:1;height:40px;border-radius:13px;background:linear-gradient(150deg,#1B6B50,#0E3B2E);display:grid;place-items:center;cursor:pointer;box-shadow:0 10px 20px -10px rgba(14,59,46,.6)">
-  <span style="font-family:var(--fh);font-size:13px;color:#fff;text-transform:uppercase;letter-spacing:.04em">${s.inviteLoading?'…':esc(t.inviteBtn)}</span></div>
-  <div onclick="goAddFriend()" data-hover style="flex:1;height:40px;border-radius:13px;background:var(--gold1);border:1px solid rgba(201,162,39,.32);display:grid;place-items:center;cursor:pointer">
+  <div onclick="createDuelRoom()" data-hover style="flex:1;height:40px;border-radius:13px;background:linear-gradient(150deg,#1B6B50,#0E3B2E);display:grid;place-items:center;cursor:pointer;box-shadow:0 10px 20px -10px rgba(14,59,46,.6)">
+  <span style="font-family:var(--fh);font-size:13px;color:#fff;text-transform:uppercase;letter-spacing:.04em">${s.duelLoading?'…':esc(t.inviteBtn)}</span></div>
+  <div onclick="goJoinRoom()" data-hover style="flex:1;height:40px;border-radius:13px;background:var(--gold1);border:1px solid rgba(201,162,39,.32);display:grid;place-items:center;cursor:pointer">
   <span style="font-family:var(--fh);font-size:13px;color:#8A6E10;text-transform:uppercase;letter-spacing:.04em">${esc(t.inviteJoinBtn)}</span></div>
   </div>
   <div style="display:flex;align-items:center;justify-content:space-between;margin-top:18px;padding-top:14px;border-top:1px solid var(--line)">
@@ -2233,8 +2347,14 @@ function overlayFriendsModal(t,s){
   <div onclick="closeFriendsModal()" data-hover style="width:32px;height:32px;border-radius:11px;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;cursor:pointer;color:var(--g8)">${svg.close}</div>
   </div>
   <div class="sc" style="overflow-y:auto;padding:4px 20px 26px">
+  <div style="display:flex;gap:8px;margin-bottom:14px">
+  <div onclick="closeFriendsModal();goInviteCode();" data-hover style="flex:1;height:38px;border-radius:12px;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;cursor:pointer">
+  <span style="font-size:11.5px;font-weight:800;color:var(--g7);text-transform:uppercase;letter-spacing:.03em">${s.lang==='kz'?'Менің кодым':'Мой код'}</span></div>
+  <div onclick="closeFriendsModal();goAddFriend();" data-hover style="flex:1;height:38px;border-radius:12px;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;cursor:pointer">
+  <span style="font-size:11.5px;font-weight:800;color:var(--g7);text-transform:uppercase;letter-spacing:.03em">${s.lang==='kz'?'Досыма қосылу':'Добавить друга'}</span></div>
+  </div>
   ${s.friendsLoading ? `<div style="text-align:center;padding:24px 0;color:var(--mut);font-size:12.5px">${s.lang==='kz'?'Жүктелуде…':'Загрузка…'}</div>`
-    : (s.friends&&s.friends.length ? friendRows : `<div style="text-align:center;padding:24px 4px;color:var(--mut);font-size:12.5px;line-height:1.6">${s.lang==='kz'?'Әзірге достарың жоқ. «Дос шақыру» немесе «Қосылу» арқылы бастаңыз.':'Пока нет друзей. Начните через «Пригласить» или «Ввести код».'}</div>`)}
+    : (s.friends&&s.friends.length ? friendRows : `<div style="text-align:center;padding:24px 4px;color:var(--mut);font-size:12.5px;line-height:1.6">${s.lang==='kz'?'Әзірге достарың жоқ. «Менің кодым» немесе «Досыма қосылу» арқылы бастаңыз.':'Пока нет друзей. Начните через «Мой код» или «Добавить друга».'}</div>`)}
   </div>
   </div>
   </div>`;
@@ -2422,6 +2542,93 @@ function screenDuelWait(t,s){
   </div>`;
 }
 
+function copyRoomCode(){
+  const room = state.duelRoom;
+  if(!room) return;
+  const done = ()=>toast(state.lang==='kz' ? 'Код көшірілді' : 'Код скопирован');
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(room.code).then(done, done); return;
+    }
+  }catch(e){}
+  done();
+}
+
+function shareRoomCode(){
+  const room = state.duelRoom;
+  if(!room) return;
+  const text = (state.lang==='kz' ? 'Бөлме коды: ' : 'Код комнаты: ') + formatRoomCode(room.code);
+  const done = ()=>toast(state.lang==='kz' ? 'Код көшірілді — досыңа жібер!' : 'Код скопирован — отправь другу!');
+  try{
+    if(navigator.share){ navigator.share({title:STR[state.lang].appName, text}).then(()=>{}, ()=>{}); return; }
+  }catch(e){}
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(done, done); return;
+    }
+  }catch(e){}
+  done();
+}
+
+function screenDuelLobby(t,s){
+  const room = s.duelRoom || {};
+  const isHost = s.duelRole==='host';
+  const hasGuest = !!(room.guest_id || s.duelOpponentId);
+  const myName = s.name;
+  const oppName = s.duelOpponentName;
+  const playerRow = (label,name,waiting)=>`<div style="display:flex;align-items:center;gap:12px;padding:13px;border-radius:18px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);margin-bottom:9px">
+  <div style="width:38px;height:38px;border-radius:14px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);display:grid;place-items:center;font-family:var(--fh);font-size:13px;color:#E7C765;flex:none">${waiting?'…':esc(initials(name))}</div>
+  <div style="flex:1;min-width:0;text-align:left">
+  <div style="font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.45);font-weight:800">${esc(label)}</div>
+  <div style="font-family:var(--fh);font-size:16px;color:#fff;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${waiting?(s.lang==='kz'?'Күтуде...':'Ожидание...'):esc(name)}</div>
+  </div></div>`;
+  const codeSection = (isHost && !hasGuest) ? `
+  <h2 style="margin-top:22px;font-size:20px;color:#fff;text-transform:uppercase">${s.lang==='kz'?'Бөлме коды':'Код комнаты'}</h2>
+  <p style="margin-top:6px;color:rgba(255,255,255,.6);font-size:12.5px;line-height:1.6">${s.lang==='kz'?'Осы кодты досыңа жібер.':'Отправь этот код другу.'}</p>
+  <div onclick="copyRoomCode()" data-hover style="margin-top:16px;padding:14px 24px;border-radius:18px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);cursor:pointer">
+  <div style="font-family:var(--fh);font-size:32px;letter-spacing:.16em;color:#E7C765">${esc(formatRoomCode(room.code))}</div>
+  </div>
+  <div style="display:flex;gap:9px;margin-top:14px;width:100%;max-width:300px">
+  <div onclick="copyRoomCode()" data-hover style="flex:1;height:44px;border-radius:15px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;cursor:pointer">
+  <span style="font-size:11.5px;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:.03em">${s.lang==='kz'?'Кодты көшіру':'Скопировать код'}</span></div>
+  <div onclick="shareRoomCode()" data-hover style="flex:1;height:44px;border-radius:15px;background:linear-gradient(150deg,#E7C765,#C9A227);display:flex;align-items:center;justify-content:center;cursor:pointer">
+  <span style="font-size:11.5px;font-weight:800;color:#3A2D06;text-transform:uppercase;letter-spacing:.03em">${s.lang==='kz'?'Сілтемені бөлісу':'Поделиться'}</span></div>
+  </div>
+  <div style="height:1px;background:rgba(255,255,255,.12);width:100%;max-width:300px;margin:22px 0"></div>` : `<div style="height:22px"></div>`;
+  return `<div class="sc" style="position:absolute;inset:0;overflow-y:auto;display:flex;flex-direction:column;align-items:center;text-align:center;padding:40px 28px 40px;background:linear-gradient(168deg,#14523E 0%,#0E3B2E 46%,#08251C 100%);animation:fade .3s ease">
+  ${codeSection}
+  <div style="width:100%;max-width:300px">
+  ${playerRow(s.lang==='kz'?'Сіз':'Вы', myName, false)}
+  ${playerRow(s.lang==='kz'?'Дос':'Друг', oppName, !hasGuest)}
+  </div>
+  ${isHost
+    ? `<div onclick="${hasGuest?'hostStartRoomCountdown()':''}" data-hover style="margin-top:14px;width:100%;max-width:300px;height:54px;border-radius:18px;display:flex;align-items:center;justify-content:center;gap:9px;${hasGuest?'background:linear-gradient(150deg,#E7C765,#C9A227);cursor:pointer;box-shadow:0 14px 26px -10px rgba(201,162,39,.7)':'background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);cursor:not-allowed'}">
+      <span style="font-family:var(--fh);font-size:17px;text-transform:uppercase;letter-spacing:.03em;color:${hasGuest?'#3A2D06':'rgba(255,255,255,.4)'}">${s.duelLoading?'…':(s.lang==='kz'?'Ойынды бастау':'Начать игру')}</span></div>`
+    : `<p style="margin-top:16px;color:rgba(255,255,255,.55);font-size:12.5px;line-height:1.6">${s.lang==='kz'?'Хост ойынды бастауын күтеміз…':'Ждём, пока хост начнёт игру…'}</p>
+       <div class="dspinner" style="margin-top:10px;border-color:rgba(255,255,255,.2);border-top-color:#E7C765"></div>`}
+  ${s.duelError?`<div style="margin-top:16px;padding:12px 14px;border-radius:14px;background:#FDECEC;border:1px solid rgba(190,60,60,.28);color:#A03232;font-size:12.5px;line-height:1.5;max-width:300px">${esc(s.duelError)}</div>`:''}
+  <div onclick="confirmLeaveDuel()" data-hover style="margin-top:24px;height:44px;padding:0 20px;border-radius:16px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);display:flex;align-items:center;gap:8px;cursor:pointer;color:rgba(255,255,255,.7)">
+  ${svg.close}<span style="font-size:12.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase">${s.lang==='kz'?'Бас тарту':'Отмена'}</span></div>
+  </div>`;
+}
+
+function screenDuelJoin(t,s){
+  return `<div class="sc" style="position:absolute;inset:0;overflow-y:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 28px;background:linear-gradient(168deg,#14523E 0%,#0E3B2E 46%,#08251C 100%);animation:fade .3s ease">
+  <div style="width:70px;height:70px;border-radius:24px;background:linear-gradient(150deg,rgba(255,255,255,.22),rgba(255,255,255,.04));border:1px solid rgba(231,199,101,.42);display:grid;place-items:center;color:#E7C765">${svg.invite}</div>
+  <h2 style="margin-top:22px;font-size:22px;color:#fff;text-transform:uppercase">${s.lang==='kz'?'Кодпен қосылу':'Войти по коду'}</h2>
+  <p style="margin-top:8px;color:rgba(255,255,255,.6);font-size:13px;line-height:1.6;max-width:260px">${s.lang==='kz'?'Досыңның бөлме кодын енгіз':'Введи код комнаты друга'}</p>
+  <form onsubmit="submitJoinRoom(event)" style="width:100%;max-width:280px">
+  <input id="room_code_input" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="000000"
+    oninput="this.value=this.value.replace(/\D/g,'').slice(0,6)"
+    style="margin-top:22px;width:100%;height:64px;border-radius:18px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);color:#E7C765;font-family:var(--fh);font-size:30px;letter-spacing:.3em;text-align:center;outline:none">
+  <button type="submit" data-hover style="width:100%;margin-top:16px;height:54px;border-radius:18px;background:linear-gradient(150deg,#E7C765,#C9A227);font-family:var(--fh);font-size:17px;color:#3A2D06;text-transform:uppercase;letter-spacing:.03em" ${s.duelJoinLoading?'disabled':''}>${s.duelJoinLoading?'…':(s.lang==='kz'?'Қосылу':'Войти')}</button>
+  </form>
+  ${s.duelJoinError?`<div style="margin-top:16px;padding:12px 14px;border-radius:14px;background:#FDECEC;border:1px solid rgba(190,60,60,.28);color:#A03232;font-size:12.5px;line-height:1.5;max-width:280px">${esc(s.duelJoinError)}</div>`:''}
+  <div onclick="goProfile()" data-hover style="margin-top:26px;height:44px;padding:0 20px;border-radius:16px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);display:flex;align-items:center;gap:8px;cursor:pointer;color:rgba(255,255,255,.7)">
+  ${svg.close}<span style="font-size:12.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase">${s.lang==='kz'?'Бас тарту':'Отмена'}</span></div>
+  </div>`;
+}
+
 function screenInviteCode(t,s){
   const code = s.myFriendCode || '------';
   return `<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 28px;background:linear-gradient(168deg,#14523E 0%,#0E3B2E 46%,#08251C 100%);animation:fade .3s ease">
@@ -2510,25 +2717,33 @@ function screenDuelGame(t,s){
 }
 
 function screenDuelResult(t,s){
-  const r = s.duelResult || {myCount:0,oppCount:0,win:false,draw:true};
-  const title = r.draw ? (s.lang==='kz'?'Тең түсті!':'Ничья!') : (r.win ? (s.lang==='kz'?'Сен жеңдің!':'Ты выиграл!') : (s.lang==='kz'?'Досың жеңді':'Друг выиграл'));
+  const r = s.duelResult || {myCount:0,oppCount:0,myTime:0,oppTime:0,win:false,draw:true};
+  const title = r.draw ? (s.lang==='kz'?'Тең ойын!':'Ничья!') : (r.win ? (s.lang==='kz'?'Жеңіс!':'Победа!') : (s.lang==='kz'?'Жақсы ойын!':'Хорошая игра!'));
+  const me = {name:s.name, pairs:r.myCount, time:r.myTime, me:true};
+  const opp = {name:s.duelOpponentName||(s.lang==='kz'?'Досың':'Друг'), pairs:r.oppCount, time:r.oppTime, me:false};
+  const ranked = [me,opp].sort((a,b)=> b.pairs-a.pairs || a.time-b.time);
+  const rows = ranked.map((p,i)=>{
+    const rank = i+1;
+    return `<div style="display:flex;align-items:center;gap:14px;padding:16px;border-radius:22px;margin-bottom:10px;${p.me?'background:rgba(231,199,101,.14);border:1.5px solid rgba(231,199,101,.4)':'background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12)'}">
+    <div style="width:38px;height:38px;border-radius:13px;display:grid;place-items:center;flex:none;font-family:var(--fh);font-size:17px;${rank===1?'background:linear-gradient(150deg,#E7C765,#C9A227);color:#3A2D06':'background:rgba(255,255,255,.1);color:#fff'}">${rank}</div>
+    <div style="flex:1;min-width:0;text-align:left">
+    <div style="font-family:var(--fh);font-size:17px;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}${p.me?(s.lang==='kz'?' (сен)':' (ты)'):''}</div>
+    <div style="font-size:11.5px;color:rgba(255,255,255,.55);margin-top:2px">${p.pairs} ${s.lang==='kz'?'жұп':'пар'} · ${mm(p.time)}</div>
+    </div>
+    </div>`;
+  }).join('');
   return `<div class="sc" style="position:absolute;inset:0;overflow-y:auto;background:linear-gradient(168deg,#1B6B50 0%,#0E3B2E 48%,#08251C 100%);animation:fade .3s ease">
-  <div style="position:relative;padding:56px 24px 40px;text-align:center">
-  <div style="position:relative;width:100px;height:100px;margin:0 auto;animation:pop .6s cubic-bezier(.2,.8,.2,1) both">
-  <div style="position:absolute;inset:0;border-radius:34px;background:${r.win?'linear-gradient(150deg,#E7C765,#C9A227)':'rgba(255,255,255,.1)'};border:${r.win?'none':'1px solid rgba(255,255,255,.2)'};box-shadow:${r.win?'0 22px 44px -14px rgba(201,162,39,.8)':'none'}"></div>
-  <div style="position:absolute;inset:0;display:grid;place-items:center;color:${r.win?'#3A2D06':'#fff'}">
-  <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M2 20.5c0-3.4 3.1-5.6 7-5.6s7 2.2 7 5.6M17.6 5.4a3.3 3.3 0 0 1 0 6.2M19.4 14.9c2.3.7 3.6 2.4 3.6 4.4"/></svg>
-  </div></div>
-  <h2 style="margin:22px 0 0;font-size:34px;color:#fff;text-transform:uppercase">${title}</h2>
-  <div style="margin-top:22px;display:flex;align-items:center;justify-content:center;gap:18px">
-  <div><div style="font-family:var(--fh);font-size:44px;color:#E7C765">${r.myCount}</div><div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.5);margin-top:2px">${s.lang==='kz'?'Сен':'Ты'}</div></div>
-  <div style="font-family:var(--fh);font-size:22px;color:rgba(255,255,255,.35)">:</div>
-  <div><div style="font-family:var(--fh);font-size:44px;color:#fff">${r.oppCount}</div><div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.5);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px">${esc(s.duelOpponentName||'—')}</div></div>
-  </div>
-  <div style="display:flex;flex-direction:column;gap:10px;margin-top:34px">
-  <div onclick="goDuelMenu()" data-hover style="height:56px;border-radius:19px;background:linear-gradient(150deg,#E7C765,#C9A227);display:flex;align-items:center;justify-content:center;gap:9px;cursor:pointer">
-  <span style="font-family:var(--fh);font-size:18px;color:#3A2D06;text-transform:uppercase;letter-spacing:.03em">${s.lang==='kz'?'Тағы ойнау':'Играть ещё'}</span></div>
-  <div onclick="leaveDuel()" data-hover style="display:flex;align-items:center;justify-content:center;gap:7px;height:44px;cursor:pointer;color:rgba(255,255,255,.6)">${svg.home.replaceAll('{{s}}','15')}<span style="font-size:12.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase">${t.home}</span></div>
+  <div style="position:relative;padding:48px 24px 40px;text-align:center">
+  <div style="position:relative;width:88px;height:88px;margin:0 auto;animation:pop .6s cubic-bezier(.2,.8,.2,1) both">
+  <div style="position:absolute;inset:0;border-radius:30px;background:${r.win?'linear-gradient(150deg,#E7C765,#C9A227)':'rgba(255,255,255,.1)'};border:${r.win?'none':'1px solid rgba(255,255,255,.2)'};box-shadow:${r.win?'0 22px 44px -14px rgba(201,162,39,.8)':'none'}"></div>
+  <div style="position:absolute;inset:0;display:grid;place-items:center;color:${r.win?'#3A2D06':'#fff'}">${svg.trophy}</div></div>
+  <div style="font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.45);margin-top:18px">${s.lang==='kz'?'Нәтиже':'Результат'}</div>
+  <h2 style="margin:6px 0 0;font-size:32px;color:#fff;text-transform:uppercase">${title}</h2>
+  <div style="margin-top:24px;text-align:left">${rows}</div>
+  <div style="display:flex;flex-direction:column;gap:10px;margin-top:24px">
+  <div onclick="createDuelRoom()" data-hover style="height:56px;border-radius:19px;background:linear-gradient(150deg,#E7C765,#C9A227);display:flex;align-items:center;justify-content:center;gap:9px;cursor:pointer">
+  <span style="font-family:var(--fh);font-size:18px;color:#3A2D06;text-transform:uppercase;letter-spacing:.03em">${esc(t.replay)}</span></div>
+  <div onclick="leaveDuel()" data-hover style="display:flex;align-items:center;justify-content:center;gap:7px;height:44px;cursor:pointer;color:rgba(255,255,255,.6)">${svg.home.replaceAll('{{s}}','15')}<span style="font-size:12.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase">${esc(t.home)}</span></div>
   </div>
   </div>
   </div>`;
@@ -2551,6 +2766,8 @@ function render(){
   else if(s.screen==='achievements') body = screenAchievements(t,s);
   else if(s.screen==='duelMenu') body = screenDuelMenu(t,s);
   else if(s.screen==='duelLevels') body = screenDuelLevels(t,s);
+  else if(s.screen==='duelLobby') body = screenDuelLobby(t,s);
+  else if(s.screen==='duelJoin') body = screenDuelJoin(t,s);
   else if(s.screen==='duelWait') body = screenDuelWait(t,s);
   else if(s.screen==='duelCountdown') body = screenDuelCountdown(t,s);
   else if(s.screen==='duelGame') body = screenDuelGame(t,s);
