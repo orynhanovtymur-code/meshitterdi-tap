@@ -2075,33 +2075,6 @@ function screenProfile(t,s){
       <button onclick="selectDuelFriend('${f.id}')" data-hover style="height:34px;padding:0 13px;border-radius:11px;background:linear-gradient(150deg,#1B6B50,#0E3B2E);color:#fff;font-family:var(--fh);font-size:12px;text-transform:uppercase;letter-spacing:.03em;cursor:pointer" ${s.duelLoading?'disabled':''}>${s.lang==='kz'?'Шақыру':'Позвать'}</button>
       </div>`).join('')
     : `<div style="text-align:center;padding:14px 4px;color:var(--mut);font-size:12px;line-height:1.6">${s.lang==='kz'?'Әзірге достарың жоқ. Кодпен қосылып немесе ойын құрып баста.':'Пока нет друзей. Начни с кода или создай игру.'}</div>`;
-  const collCard = m=>{
-    const has = s.found.indexOf(m.id)>-1;
-    return `<div style="position:relative;aspect-ratio:1/1;border-radius:18px;overflow:hidden;background:var(--g2);border:1px solid var(--line)">
-    <div role="img" aria-label="${esc(m.name[s.lang])}" style="position:absolute;inset:0;background-image:url('${m.img}');background-size:cover;background-position:center;${has?'':'filter:grayscale(.85) brightness(.8)'}"></div>
-    <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(8,37,28,.6),transparent 60%)"></div>
-    <span style="position:absolute;left:8px;right:8px;bottom:7px;font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.94);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.city[s.lang])}</span>
-    ${!has?`<div style="position:absolute;inset:0;display:grid;place-items:center;background:rgba(8,37,28,.58);backdrop-filter:blur(3px);color:rgba(255,255,255,.7)">${svg.lock.replaceAll('{{s}}','17')}</div>`:''}
-    </div>`;
-  };
-  let collSections = '';
-  if(CATEGORIES.length){
-    CATEGORIES.forEach(cat=>{
-      const catItems = ITEMS.filter(m=>m.categoryId===cat.id);
-      if(!catItems.length) return;
-      const catFound = catItems.filter(m=>s.found.indexOf(m.id)>-1).length;
-      collSections += `<div style="display:flex;align-items:baseline;justify-content:space-between;padding:16px 22px 10px">
-      <h4 style="font-size:15px;text-transform:uppercase;color:var(--g8)">${esc(cat.name[s.lang])}</h4>
-      <span style="font-size:11px;font-weight:700;color:var(--mut)">${catFound}/${catItems.length}</span></div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:9px;padding:0 18px">${catItems.map(collCard).join('')}</div>`;
-    });
-    const uncategorized = ITEMS.filter(m=>!m.categoryId || !CATEGORIES.some(c=>c.id===m.categoryId));
-    if(uncategorized.length){
-      collSections += `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:9px;padding:16px 18px 0">${uncategorized.map(collCard).join('')}</div>`;
-    }
-  } else {
-    collSections = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:9px;padding:0 18px">${ITEMS.map(collCard).join('')}</div>`;
-  }
   return `<div class="sc" style="position:absolute;inset:0;overflow-y:auto;padding:24px 0 104px;animation:fade .28s ease">
   <div style="margin:6px 18px 0;position:relative;border-radius:28px;overflow:hidden;background:linear-gradient(160deg,#1B6B50,#0E3B2E 58%,#08251C);box-shadow:0 22px 44px -22px rgba(8,37,28,.6)">
   <div style="position:absolute;inset:0;opacity:.42;background:repeating-conic-gradient(from 22.5deg at 78% 6%,rgba(255,255,255,.06) 0deg 11deg,transparent 11deg 22.5deg)"></div>
@@ -2132,7 +2105,13 @@ function screenProfile(t,s){
   <div onclick="openCoinsModal()" data-hover style="padding:15px;border-radius:22px;background:var(--gold1);border:1px solid rgba(201,162,39,.3);cursor:pointer">
   <div style="color:#8A6E10">${svg.reward}</div><div style="font-family:var(--fh);font-size:28px;margin-top:9px;line-height:1;color:#6E5511">${s.coins.toLocaleString('ru-RU')}</div>
   <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#8A6E10;margin-top:3px">${esc(t.coins)}</div></div></div>
-  <div onclick="goAchievements()" data-hover style="margin:14px 18px 0;padding:17px;border-radius:24px;background:var(--paper);border:1px solid var(--line);display:flex;align-items:center;gap:14px;cursor:pointer">
+  <div onclick="goBoard()" data-hover style="margin:14px 18px 0;padding:17px;border-radius:24px;background:var(--paper);border:1px solid var(--line);display:flex;align-items:center;gap:14px;cursor:pointer">
+  <div style="width:44px;height:44px;border-radius:16px;background:var(--g1);border:1px solid var(--g2);display:grid;place-items:center;color:var(--g7);flex:none">${svg.rating}</div>
+  <div style="flex:1;min-width:0"><div style="font-family:var(--fh);font-size:19px;line-height:1.1">${esc(t.rating)}</div>
+  <div style="font-size:11.5px;color:var(--mut);margin-top:3px;line-height:1.45">${s.myRank?(s.myRank+'-'+t.rank+' · '+t.overallRating):t.overallRating}</div></div>
+  ${svg.arrow.replaceAll('{{s}}','18').replace('{{c}}','#9AC7B3')}
+  </div>
+  <div onclick="goAchievements()" data-hover style="margin:10px 18px 0;padding:17px;border-radius:24px;background:var(--paper);border:1px solid var(--line);display:flex;align-items:center;gap:14px;cursor:pointer">
   <div style="width:44px;height:44px;border-radius:16px;background:var(--gold1);border:1px solid rgba(201,162,39,.3);display:grid;place-items:center;color:#8A6E10;flex:none">${svg.starSolid}</div>
   <div style="flex:1;min-width:0"><div style="font-family:var(--fh);font-size:19px;line-height:1.1">${s.lang==='kz'?'Жетістіктер':'Достижения'}</div>
   <div style="font-size:11.5px;color:var(--mut);margin-top:3px;line-height:1.45">${achUnlockedCount}/${achTotalCount} ${s.lang==='kz'?'ашылды':'открыто'}</div></div>
@@ -2156,20 +2135,10 @@ function screenProfile(t,s){
   </div>
   <div style="margin-top:10px">${friendMiniRows}</div>
   </div>
-  <div style="display:flex;align-items:baseline;justify-content:space-between;padding:24px 22px 4px">
-  <h3 style="font-size:22px;text-transform:uppercase">${esc(t.collectionTitle)}</h3>
-  <span style="font-size:11.5px;font-weight:700;color:var(--mut)">${s.found.length}/${ITEMS.length}</span></div>
-  ${collSections}
   <div onclick="toggleLang()" data-hover style="margin:20px 18px 0;height:52px;border-radius:18px;background:var(--paper);border:1px solid var(--line);display:flex;align-items:center;gap:11px;padding:0 16px;cursor:pointer">
   ${svg.globe}<span style="font-size:13.5px;font-weight:700">${esc(t.language)}</span>
   <span style="margin-left:auto;display:flex;gap:3px;padding:3px;border-radius:11px;background:var(--g1);border:1px solid var(--g2)">
   <span style="${s.lang==='kz'?CHIP_ON:CHIP_OFF}">ҚАЗ</span><span style="${s.lang==='ru'?CHIP_ON:CHIP_OFF}">РУС</span></span></div>
-  <div onclick="goBoard()" data-hover style="margin:10px 18px 0;padding:17px;border-radius:24px;background:var(--paper);border:1px solid var(--line);display:flex;align-items:center;gap:14px;cursor:pointer">
-  <div style="width:44px;height:44px;border-radius:16px;background:var(--g1);border:1px solid var(--g2);display:grid;place-items:center;color:var(--g7);flex:none">${svg.rating}</div>
-  <div style="flex:1;min-width:0"><div style="font-family:var(--fh);font-size:19px;line-height:1.1">${esc(t.rating)}</div>
-  <div style="font-size:11.5px;color:var(--mut);margin-top:3px;line-height:1.45">${s.myRank?(s.myRank+'-'+t.rank+' · '+t.overallRating):t.overallRating}</div></div>
-  ${svg.arrow.replaceAll('{{s}}','18').replace('{{c}}','#9AC7B3')}
-  </div>
   ${s.playerId?`<div onclick="goSettings()" data-hover style="margin:20px 18px 0;height:52px;border-radius:18px;background:var(--paper);border:1px solid var(--line);display:flex;align-items:center;gap:11px;padding:0 16px;cursor:pointer">
   <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#14523E" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 12c0 .5 0 1 0 1.5l2 1.5-2 3.5-2.4-.5a7 7 0 0 1-2.6 1.5L14 21h-4l-.4-2a7 7 0 0 1-2.6-1.5L4.6 18l-2-3.5 2-1.5c0-.5 0-1 0-1.5s0-1 0-1.5l-2-1.5 2-3.5 2.4.5A7 7 0 0 1 9.6 3.5L10 1.5h4l.4 2a7 7 0 0 1 2.6 1.5l2.4-.5 2 3.5-2 1.5c0 .5 0 1 0 1.5z"/></svg>
   <span style="font-size:13.5px;font-weight:700">${s.lang==='kz'?'Аккаунт баптаулары':'Настройки аккаунта'}</span>
