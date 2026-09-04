@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DIN MEN DASTUR</title>
+<title>ДІН МЕН ДӘСТҮР</title>
 <style>
 :root{
   --cream:#F7F4EC;--paper:#FFFFFF;
@@ -113,36 +113,36 @@ let ITEMS = [
 ];
 
 const STR = {
-  kz:{appName:'DIN MEN DASTUR',splashTag:'Карточкаларды жаттап, жұптарын тап',loading:'Жүктелуде',
-    greeting:'Қайырлы күн',heroKicker:'Есте сақтау ойыны',heroDesc:'Карточкаларды аш, бірдей заттарды жұптап тап және әр жұп туралы жаңа дүние біл.',
-    start:'Ойынды бастау',levels:'Деңгейлер',seeAll:'Барлығы',collection:'Жинақ',rank:'Орын',
-    collectionTitle:'Жинақ',step1:'1-қадам',chooseLevel:'Деңгейді таңда',
-    levelTip:'Қиын деңгейде әр жұп 2 есе көп ұпай береді. Уақыт бітпей тап!',
+  kz:{appName:'ДІН МЕН ДӘСТҮР',splashTag:'Ойна. Таны. Үйрен.',loading:'Жүктелуде',
+    greeting:'Қайырлы күн',heroKicker:'Танымдық ойын',heroDesc:'Карточкаларды ашып, сәйкес жұптарды тап. Әр жұппен бірге жаңа мәлімет біл.',
+    start:'Ойынды бастау',levels:'Деңгейлер',seeAll:'Барлығы',collection:'Жиналған карточка',rank:'орын',
+    collectionTitle:'Менің жинағым',step1:'1-қадам',chooseLevel:'Деңгейді таңда',
+    levelTip:'Кеңес: қиын деңгейде әр жұпқа ×2 ұпай беріледі. Уақытты тиімді пайдалан!',
     easy:'Оңай',medium:'Орташа',hard:'Қиын',
-    easyDesc:'Алты жұп. Танысу үшін ыңғайлы бастама.',mediumDesc:'Сегіз жұп. Есте сақтауды нақты тексереді.',hardDesc:'Он жұп. Уақыт қысады, ұпай екі есе.',
+    easyDesc:'Алғашқы қадамға арналған жеңіл деңгей.',mediumDesc:'Зейін мен есте сақтауды сынайды.',hardDesc:'Уақыт шектеулі. Әр жұпқа ×2 ұпай.',
     foundPair:'Жұп табылды',continueBtn:'Жалғастыру',
-    victoryTitle:'Жеңіс!',victoryDescT:'{n} жұпты тауып шықтың',
+    victoryTitle:'Керемет!',victoryDescT:'{n} жұпты тауып шықтың',
     score:'Ұпай',time:'Уақыт',moves:'Қадам',coins:'Монета',
-    nextLevel:'Келесі деңгей',replay:'Қайта',share:'Бөлісу',
-    home:'Басты',games:'Ойындар',rating:'Рейтинг',profile:'Профиль',
-    globalTop:'Жаһандық top-10',levelTag:'Деңгей',xpToNext:'Келесі деңгейге',
-    gamesPlayed:'Ойын',bestTime:'Үздік уақыт',mosquesFound:'Табылған',
+    nextLevel:'Келесі деңгей',replay:'Қайта ойнау',share:'Бөлісу',
+    home:'Басты',games:'Ойнау',rating:'Рейтинг',profile:'Профиль',
+    globalTop:'Үздік ойыншылар',levelTag:'Деңгей',xpToNext:'Келесі деңгейге',
+    gamesPlayed:'Ойналған ойын',bestTime:'Үздік нәтиже',mosquesFound:'Жиналған карточка',
     invite:'Дос шақыру',inviteDesc:'Әр досқа 200 монета',inviteBtn:'Шақыру',language:'Тіл',
     shared:'Нәтиже көшірілді — досыңмен бөліс!'},
-  ru:{appName:'DIN MEN DASTUR',splashTag:'Запоминай карточки и находи их пары',loading:'Загрузка',
-    greeting:'Добрый день',heroKicker:'Игра на память',heroDesc:'Открывай карточки, находи одинаковые пары и узнавай новое о каждой из них.',
-    start:'Начать игру',levels:'Уровни',seeAll:'Все',collection:'Коллекция',rank:'Место',
-    collectionTitle:'Коллекция',step1:'Шаг 1',chooseLevel:'Выбери уровень',
-    levelTip:'На сложном уровне каждая пара даёт вдвое больше очков. Успей до конца времени!',
+  ru:{appName:'ДІН МЕН ДӘСТҮР',splashTag:'Играй. Познавай. Учись.',loading:'Загрузка',
+    greeting:'Добрый день',heroKicker:'Познавательная игра',heroDesc:'Открывай карточки и находи подходящие пары. С каждой парой узнавай новый факт.',
+    start:'Начать игру',levels:'Уровни',seeAll:'Все',collection:'Собрано карточек',rank:'место',
+    collectionTitle:'Моя коллекция',step1:'Шаг 1',chooseLevel:'Выбери уровень',
+    levelTip:'Совет: на сложном уровне каждая пара даёт ×2 очков. Используй время с умом!',
     easy:'Легко',medium:'Средне',hard:'Сложно',
-    easyDesc:'Шесть пар. Спокойное начало для знакомства.',mediumDesc:'Восемь пар. Настоящая проверка памяти.',hardDesc:'Десять пар. Время поджимает, очки удвоены.',
+    easyDesc:'Лёгкий уровень для первого шага.',mediumDesc:'Проверяет внимание и память.',hardDesc:'Время ограничено. Каждая пара ×2 очков.',
     foundPair:'Пара найдена',continueBtn:'Продолжить',
-    victoryTitle:'Победа!',victoryDescT:'Ты собрал {n} пар',
+    victoryTitle:'Отлично!',victoryDescT:'Ты собрал {n} пар',
     score:'Очки',time:'Время',moves:'Ходы',coins:'Монеты',
-    nextLevel:'Следующий уровень',replay:'Заново',share:'Поделиться',
-    home:'Главная',games:'Игры',rating:'Рейтинг',profile:'Профиль',
-    globalTop:'Глобальный top-10',levelTag:'Уровень',xpToNext:'До след. уровня',
-    gamesPlayed:'Игры',bestTime:'Лучшее время',mosquesFound:'Найдено',
+    nextLevel:'Следующий уровень',replay:'Играть заново',share:'Поделиться',
+    home:'Главная',games:'Играть',rating:'Рейтинг',profile:'Профиль',
+    globalTop:'Лучшие игроки',levelTag:'Уровень',xpToNext:'До след. уровня',
+    gamesPlayed:'Сыграно игр',bestTime:'Лучший результат',mosquesFound:'Собрано карточек',
     invite:'Пригласить друга',inviteDesc:'200 монет за друга',inviteBtn:'Пригласить',language:'Язык',
     shared:'Результат скопирован — поделись с другом!'}
 };
@@ -160,7 +160,8 @@ const CHIP_OFF = 'height:24px;padding:0 11px;border-radius:8px;background:transp
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 let state = { screen:'splash', lang:'kz', coins:1240, found:[], name:'Ойыншы', city:'', email:'',
-  playerId:null, bestScore:0, leaderboard:null, unlockedStage:1, currentStage:null,
+  playerId:null, bestScore:0, leaderboard:null, myRank:null, unlockedStage:1, currentStage:null,
+  gamesPlayed:0, bestTimeSeconds:null,
   authMode:'register', authError:'', authInfo:'', authLoading:false,
   settingsError:'', settingsInfo:'', settingsLoading:false, prevScreen:'home',
   duelRoom:null, duelRole:null, duelChannel:null, duelError:'', duelLoading:false,
@@ -207,7 +208,9 @@ function persistCloud(){
       coins: state.coins,
       found: state.found,
       best_score: state.bestScore||0,
-      unlocked_stage: state.unlockedStage||1
+      unlocked_stage: state.unlockedStage||1,
+      games_played: state.gamesPlayed||0,
+      best_time_seconds: state.bestTimeSeconds
     }).eq('id', state.playerId).then(({error})=>{
       if(error) console.warn('Supabase save failed:', error.message);
     });
@@ -223,7 +226,8 @@ async function hydratePlayer(uid, defaults){
       name: (defaults && defaults.name) || state.name,
       city: (defaults && defaults.city) || state.city || null,
       lang: state.lang, coins: state.coins, found: state.found, best_score: state.bestScore||0,
-      unlocked_stage: state.unlockedStage||1
+      unlocked_stage: state.unlockedStage||1, games_played: state.gamesPlayed||0,
+      best_time_seconds: state.bestTimeSeconds
     };
     const { data: created, error } = await sb.from('players').insert(insertRow).select().maybeSingle();
     if(error) throw error;
@@ -237,6 +241,8 @@ async function hydratePlayer(uid, defaults){
     state.found = row.found || state.found;
     state.bestScore = row.best_score || 0;
     state.unlockedStage = row.unlocked_stage || state.unlockedStage || 1;
+    state.gamesPlayed = row.games_played || 0;
+    state.bestTimeSeconds = row.best_time_seconds!=null ? row.best_time_seconds : null;
     try{
       localStorage.setItem('mmt:lang', state.lang);
       localStorage.setItem('mmt:coins', String(state.coins));
@@ -257,6 +263,7 @@ async function bootAuth(){
       await hydratePlayer(session.user.id);
       cloudReady = true;
       subscribeGlobalInvites();
+      fetchMyRank();
       if(state.screen!=='splash' && state.screen!=='game') render();
     }
   }catch(e){
@@ -291,6 +298,7 @@ async function submitRegister(e){
       await hydratePlayer(data.session.user.id, {name, city});
       cloudReady = true;
       subscribeGlobalInvites();
+      fetchMyRank();
       state.authLoading = false;
       setState({screen:'home'});
     } else {
@@ -325,6 +333,7 @@ async function submitLogin(e){
     await hydratePlayer(data.session.user.id);
     cloudReady = true;
     subscribeGlobalInvites();
+    fetchMyRank();
     state.authLoading = false;
     setState({screen:'home'});
   }catch(err){
@@ -372,6 +381,21 @@ async function fetchLeaderboard(){
     state.leaderboard = state.leaderboard || [];
   }
   if(state.screen==='board') render();
+}
+
+async function fetchMyRank(){
+  if(!sb || !state.playerId){ state.myRank = null; return; }
+  try{
+    const { count, error } = await sb.from('players')
+      .select('id', {count:'exact', head:true})
+      .gt('best_score', state.bestScore||0);
+    if(error) throw error;
+    state.myRank = (count||0) + 1;
+  }catch(e){
+    console.warn('Rank fetch failed:', e.message||e);
+    state.myRank = null;
+  }
+  if(state.screen==='home' || state.screen==='profile') render();
 }
 
 function genRoomCode(){
@@ -946,6 +970,14 @@ function stageItems(stageIndex){
   return slice;
 }
 
+function explainLockedStage(stageIndex){
+  const need = stageIndex - 1;
+  const msg = state.lang==='kz'
+    ? stageIndex+'-кезеңді ашу үшін '+need+'-кезеңді аяқта.'
+    : 'Чтобы открыть этап '+stageIndex+', сначала пройди этап '+need+'.';
+  toast(msg);
+}
+
 function startStage(stageIndex){
   if(stageIndex > (state.unlockedStage||1)) return;
   const pool = stageItems(stageIndex);
@@ -1034,13 +1066,18 @@ function closeSheet(){
     const coins = s.coins + L.reward;
     const finalScore = s.score+bonus;
     state.bestScore = Math.max(state.bestScore||0, finalScore);
-    const persistPatch = {coins};
+    state.gamesPlayed = (state.gamesPlayed||0) + 1;
+    if(state.bestTimeSeconds==null || s.elapsed < state.bestTimeSeconds){
+      state.bestTimeSeconds = s.elapsed;
+    }
+    const persistPatch = {coins, gamesPlayed:state.gamesPlayed, bestTimeSeconds:state.bestTimeSeconds};
     if(s.levelId==='stage' && s.currentStage && s.currentStage>=(s.unlockedStage||1)){
       state.unlockedStage = s.currentStage+1;
       persistPatch.unlockedStage = state.unlockedStage;
     }
     persist(persistPatch);
     setState({sheet:null,screen:'victory',score:finalScore,stars,earned:L.reward,coins});
+    fetchMyRank();
   } else {
     state.sheet = null;
   }
@@ -1201,14 +1238,14 @@ function screenHome(t,s){
   ${svg.arrow.replaceAll('{{s}}','19').replace('{{c}}','#3A2D06')}</div>
   <div onclick="goDuelMenu()" data-hover style="margin-top:10px;height:48px;border-radius:17px;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;gap:9px;cursor:pointer">
   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="8.5" cy="8" r="3"/><path d="M2.5 20c0-3 2.7-5 6-5s6 2 6 5"/><circle cx="17" cy="8.5" r="2.4"/><path d="M15.8 12.2c2.3.3 4.2 1.9 4.7 4.3"/></svg>
-  <span style="font-family:var(--fh);font-size:15px;color:#fff;text-transform:uppercase;letter-spacing:.03em">${s.lang==='kz'?'Досыңмен ойнау':'Играть с другом'}</span>
+  <span style="font-family:var(--fh);font-size:15px;color:#fff;text-transform:uppercase;letter-spacing:.03em">${s.lang==='kz'?'Доспен ойнау':'Играть с другом'}</span>
   </div>
   <div style="display:flex;gap:8px;margin-top:16px">
   <div style="flex:1;padding:11px 12px;border-radius:15px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.11)">
   <div style="font-family:var(--fh);font-size:22px;color:#fff;line-height:1">${s.found.length}<span style="font-size:12px;color:rgba(255,255,255,.42)">/${ITEMS.length}</span></div>
   <div style="font-size:9.5px;letter-spacing:.15em;text-transform:uppercase;color:rgba(255,255,255,.45);margin-top:4px">${esc(t.collection)}</div></div>
   <div style="flex:1;padding:11px 12px;border-radius:15px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.11)">
-  <div style="font-family:var(--fh);font-size:22px;color:#fff;line-height:1">#3</div>
+  <div style="font-family:var(--fh);font-size:22px;color:#fff;line-height:1">${s.myRank?s.myRank:'—'}</div>
   <div style="font-size:9.5px;letter-spacing:.15em;text-transform:uppercase;color:rgba(255,255,255,.45);margin-top:4px">${esc(t.rank)}</div></div>
   </div></div></div>
   <div style="display:flex;align-items:baseline;justify-content:space-between;padding:26px 22px 12px">
@@ -1271,9 +1308,10 @@ function screenStages(t,s){
     const bg = isLocked ? 'var(--g2)' : (isDone ? 'linear-gradient(158deg,#5AA184,#2E8365)' : 'linear-gradient(158deg,#E7C765,#C9A227)');
     const fg = isLocked ? 'var(--mut)' : (isDone ? '#fff' : '#3A2D06');
     const inner = isLocked ? svg.lock.replaceAll('{{s}}','20') : (isDone ? doneIcon : `<span style="font-family:var(--fh);font-size:21px;color:${fg}">${n}</span>`);
-    return `<div onclick="${isLocked?'':'startStage('+n+')'}" data-hover style="position:relative;aspect-ratio:1/1;border-radius:18px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:${isLocked?'default':'pointer'};background:${bg};${isLocked?'':'box-shadow:0 10px 20px -10px rgba(8,37,28,.4)'}">
+    const onclick = isLocked ? `explainLockedStage(${n})` : `startStage(${n})`;
+    return `<div onclick="${onclick}" data-hover style="position:relative;aspect-ratio:1/1;border-radius:18px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;background:${bg};${isLocked?'':'box-shadow:0 10px 20px -10px rgba(8,37,28,.4)'}">
     <div style="color:${fg}">${inner}</div>
-    <span style="font-size:8px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:${fg}">${isLocked?(s.lang==='kz'?'жабық':'закрыт'):(isDone?(s.lang==='kz'?'өтті':'пройден'):(s.lang==='kz'?n+'-кезең':'Этап '+n))}</span>
+    <span style="font-size:8px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:${fg}">${isLocked?(s.lang==='kz'?'құлыптаулы':'заблокирован'):(isDone?(s.lang==='kz'?'аяқталды':'пройден'):(s.lang==='kz'?'ағымдағы':'текущий'))}</span>
     </div>`;
   }).join('');
   return `<div style="margin:26px 18px 0">
@@ -1476,23 +1514,19 @@ function screenProfile(t,s){
   <div style="flex:1;min-width:0">
   <h3 onclick="goSettings()" style="font-size:27px;color:#fff;text-transform:uppercase;cursor:pointer">${esc(s.name)}</h3>
   <div style="display:flex;align-items:center;gap:7px;margin-top:6px">
-  <span style="height:21px;padding:0 8px;border-radius:6px;background:rgba(231,199,101,.16);border:1px solid rgba(231,199,101,.3);color:#E7C765;font-size:9.5px;font-weight:800;letter-spacing:.12em;display:flex;align-items:center;white-space:nowrap;flex:none">${esc(t.levelTag)} 7</span>
-  <span style="font-size:11.5px;font-weight:700;color:rgba(255,255,255,.55)">#3 · ${esc(t.globalTop)}</span></div>
+  <span style="font-size:11.5px;font-weight:700;color:rgba(255,255,255,.75)">${s.myRank?(s.myRank+'-'+t.rank+' · '+t.globalTop):t.globalTop}</span></div>
   ${s.city?`<div style="margin-top:6px;display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:rgba(255,255,255,.5)">${svg.pin} ${esc(s.city)}</div>`:''}
   </div></div>
-  <div style="position:relative;padding:0 22px 20px">
-  <div style="height:5px;border-radius:4px;background:rgba(255,255,255,.14);overflow:hidden"><div style="height:100%;width:62%;border-radius:4px;background:linear-gradient(90deg,#C9A227,#E7C765)"></div></div>
-  <div style="display:flex;justify-content:space-between;margin-top:7px;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.42)">
-  <span>${esc(t.xpToNext)}</span><span>620 / 1000</span></div></div></div>
+  </div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px 18px 0">
   <div style="padding:15px;border-radius:22px;background:var(--paper);border:1px solid var(--line)">
-  <div style="color:var(--g6)">${svg.games}</div><div style="font-family:var(--fh);font-size:28px;margin-top:9px;line-height:1">124</div>
+  <div style="color:var(--g6)">${svg.games}</div><div style="font-family:var(--fh);font-size:28px;margin-top:9px;line-height:1">${s.gamesPlayed||0}</div>
   <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--mut);margin-top:3px">${esc(t.gamesPlayed)}</div></div>
   <div style="padding:15px;border-radius:22px;background:var(--paper);border:1px solid var(--line)">
-  <div style="color:var(--g6)">${svg.clockThin}</div><div style="font-family:var(--fh);font-size:28px;margin-top:9px;line-height:1">0:38</div>
+  <div style="color:var(--g6)">${svg.clockThin}</div><div style="font-family:var(--fh);font-size:28px;margin-top:9px;line-height:1">${s.bestTimeSeconds!=null?mm(s.bestTimeSeconds):'—'}</div>
   <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--mut);margin-top:3px">${esc(t.bestTime)}</div></div>
   <div style="padding:15px;border-radius:22px;background:var(--paper);border:1px solid var(--line)">
-  <div style="color:var(--g6)">${svg.starSolid.replace('currentColor','currentColor')}</div><div style="font-family:var(--fh);font-size:28px;margin-top:9px;line-height:1">${s.found.length}</div>
+  <div style="color:var(--g6)">${svg.starSolid.replace('currentColor','currentColor')}</div><div style="font-family:var(--fh);font-size:28px;margin-top:9px;line-height:1">${s.found.length}<span style="font-size:14px;color:var(--mut)">/${ITEMS.length}</span></div>
   <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--mut);margin-top:3px">${esc(t.mosquesFound)}</div></div>
   <div style="padding:15px;border-radius:22px;background:var(--gold1);border:1px solid rgba(201,162,39,.3)">
   <div style="color:#8A6E10">${svg.reward}</div><div style="font-family:var(--fh);font-size:28px;margin-top:9px;line-height:1;color:#6E5511">${s.coins.toLocaleString('ru-RU')}</div>
@@ -1670,7 +1704,7 @@ function screenDuelMenu(t,s){
   return `<div class="sc" style="position:absolute;inset:0;overflow-y:auto;padding:24px 0 40px;animation:fade .28s ease">
   <div style="display:flex;align-items:center;gap:12px;padding:4px 20px 6px">
   <div onclick="goHome()" data-hover style="width:38px;height:38px;border-radius:13px;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;cursor:pointer;color:var(--g8)">${svg.back}</div>
-  <h3 style="font-size:24px;text-transform:uppercase">${s.lang==='kz'?'Досыңмен ойнау':'Игра с другом'}</h3>
+  <h3 style="font-size:24px;text-transform:uppercase">${s.lang==='kz'?'Доспен ойнау':'Игра с другом'}</h3>
   </div>
   <div style="padding:18px 22px 0">
   ${s.duelDeclinedMsg?`<div style="margin-bottom:16px;padding:12px 14px;border-radius:14px;background:var(--gold1);border:1px solid rgba(201,162,39,.32);color:#8A6E10;font-size:12.5px;line-height:1.5">${esc(s.duelDeclinedMsg)}</div>`:''}
