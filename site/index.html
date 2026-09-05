@@ -49,6 +49,7 @@ button{font-family:inherit;border:none;background:none;padding:0}
 .ginput:focus{outline:2px solid var(--g4);outline-offset:1px}
 .dspinner{display:inline-block;width:22px;height:22px;border-radius:50%;border:3px solid rgba(255,255,255,.25);border-top-color:#fff;animation:dspin .8s linear infinite}
 @keyframes dspin{to{transform:rotate(360deg)}}
+.achIcon svg{width:22px;height:22px;stroke:currentColor}
 ::view-transition-old(root),::view-transition-new(root){animation-duration:.32s;animation-timing-function:cubic-bezier(.2,.85,.2,1)}
 @media (prefers-reduced-motion: reduce){*{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important}
 ::view-transition-old(root),::view-transition-new(root){animation-duration:.001ms !important}}
@@ -2366,7 +2367,7 @@ function screenAchievements(t,s){
   const rows = list.map(a=>{
     const pct = a.target ? Math.round(a.progress/a.target*100) : 0;
     return `<div style="display:flex;align-items:center;gap:14px;padding:14px;border-radius:22px;background:${a.unlocked?'var(--paper)':'var(--g1)'};border:1px solid ${a.unlocked?'rgba(46,131,101,.32)':'var(--line)'};margin-bottom:10px;${a.unlocked?'':'opacity:.62'}">
-    <div style="width:46px;height:46px;border-radius:16px;display:grid;place-items:center;flex:none;background:${a.unlocked?'linear-gradient(150deg,#E7C765,#C9A227)':'var(--g2)'};color:${a.unlocked?'#3A2D06':'var(--mut)'}">${a.icon}</div>
+    <div style="width:46px;height:46px;border-radius:16px;display:grid;place-items:center;flex:none;background:${a.unlocked?'linear-gradient(150deg,#E7C765,#C9A227)':'var(--g2)'};color:${a.unlocked?'#3A2D06':'var(--mut)'}"><span class="achIcon">${a.icon}</span></div>
     <div style="flex:1;min-width:0">
     <div style="font-family:var(--fh);font-size:16px;line-height:1.1">${esc(s.lang==='kz'?a.titleKz:a.titleRu)}</div>
     <div style="font-size:11.5px;color:var(--mut);margin-top:3px;line-height:1.4">${esc(s.lang==='kz'?a.descKz:a.descRu)}</div>
