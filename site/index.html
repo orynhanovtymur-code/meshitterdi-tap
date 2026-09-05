@@ -1824,20 +1824,25 @@ function screenHome(t,s){
     {kz:'Жасанды ойыншы 2',ru:'Бот-игрок 2'},
     {kz:'Жасанды ойыншы 3',ru:'Бот-игрок 3'}
   ];
-  const botCards = botNames.slice(0,botsNeeded).map((n,i)=>({id:'bot'+i, name:n[s.lang], isBot:true}));
+  const botColors = ['#5AA184','#C9A227','#8A6E10'];
+  const botCards = botNames.slice(0,botsNeeded).map((n,i)=>({
+    id:'bot'+i, name:n[s.lang], isBot:true,
+    avatarUrl: AVATARS.length ? AVATARS[i % AVATARS.length].url : null,
+    botColor: botColors[i % botColors.length]
+  }));
   const displayLive = realLive.concat(botCards);
   const liveCards = displayLive.map(p=>`
-  <div style="flex:none;width:104px;padding:12px 10px;border-radius:18px;background:var(--g1);border:1px solid var(--g2);text-align:center">
-  <div style="position:relative;width:40px;height:40px;margin:0 auto">
-  ${avatarBox(p.name, p.avatarUrl, 40, 14, 'var(--paper)', 'var(--g7)', 14, 'border:1px solid var(--line)')}
-  ${p.isBot?'':'<span style="position:absolute;bottom:-1px;right:-1px;width:10px;height:10px;border-radius:50%;background:#2E8365;border:2px solid var(--g1)"></span>'}
+  <div style="padding:14px 8px;border-radius:18px;background:var(--g1);border:1px solid var(--g2);text-align:center">
+  <div style="position:relative;width:52px;height:52px;margin:0 auto">
+  ${avatarBox(p.name, p.avatarUrl, 52, 18, (p.isBot?p.botColor:'var(--paper)'), (p.isBot?'#fff':'var(--g7)'), 17, p.isBot?'':'border:1px solid var(--line)')}
+  ${p.isBot?'':'<span style="position:absolute;bottom:-1px;right:-1px;width:12px;height:12px;border-radius:50%;background:#2E8365;border:2px solid var(--g1)"></span>'}
   </div>
-  <div style="margin-top:8px;font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</div>
+  <div style="margin-top:9px;font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</div>
   ${p.isBot
-    ? `<div style="font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);margin-top:2px">${s.lang==='kz'?'Бот':'Бот'}</div>`
-    : `<div style="font-size:10.5px;color:var(--mut);margin-top:2px">${p.coins.toLocaleString('ru-RU')} ${s.lang==='kz'?'ұпай':'очков'}</div>`}
-  <div onclick="${p.isBot?'goLevels()':`inviteLivePlayer('${p.id}','${esc(p.name).replace(/'/g,"\'")}')`}" data-hover style="margin-top:8px;height:28px;border-radius:10px;background:linear-gradient(150deg,#1B6B50,#0E3B2E);display:grid;place-items:center;cursor:pointer">
-  <span style="font-size:10px;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:.03em">${s.lang==='kz'?'Ойнау':'Играть'}</span>
+    ? `<div style="font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);margin-top:2px">${s.lang==='kz'?'Бот':'Бот'}</div>`
+    : `<div style="font-size:11px;color:var(--mut);margin-top:2px">${p.coins.toLocaleString('ru-RU')} ${s.lang==='kz'?'ұпай':'очков'}</div>`}
+  <div onclick="${p.isBot?'goLevels()':`inviteLivePlayer('${p.id}','${esc(p.name).replace(/'/g,"\'")}')`}" data-hover style="margin-top:9px;height:32px;border-radius:11px;background:linear-gradient(150deg,#1B6B50,#0E3B2E);display:grid;place-items:center;cursor:pointer">
+  <span style="font-size:11px;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:.03em">${s.lang==='kz'?'Ойнау':'Играть'}</span>
   </div>
   </div>`).join('');
   const liveHtml = `<div style="margin:14px 18px 0;padding:16px;border-radius:22px;background:var(--paper);border:1px solid var(--line)">
@@ -1845,7 +1850,7 @@ function screenHome(t,s){
   <span style="font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--g6);font-weight:800">${s.lang==='kz'?'Live ойыншылар':'Live игроки'}</span>
   <div onclick="refreshLivePlayers()" data-hover style="width:28px;height:28px;border-radius:9px;background:var(--g1);border:1px solid var(--g2);display:grid;place-items:center;cursor:pointer;color:var(--g7)">${svg.replay}</div>
   </div>
-  <div class="sc" style="display:flex;gap:10px;margin-top:12px;overflow-x:auto">${liveCards}</div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px">${liveCards}</div>
   </div>`;
   const collHtml = ITEMS.map(m=>{
     const has = s.found.indexOf(m.id)>-1;
@@ -1890,9 +1895,9 @@ function screenHome(t,s){
   <div style="font-family:var(--fh);font-size:22px;color:#fff;line-height:1;text-transform:uppercase">${s.myRank?(s.myRank+'-'+t.rank):'—'}</div>
   <div style="font-size:9.5px;letter-spacing:.15em;text-transform:uppercase;color:rgba(255,255,255,.45);margin-top:4px">${esc(t.inRating)}</div></div>
   </div></div></div>
+  ${liveHtml}
   ${dailyHtml}
   ${todayHtml}
-  ${liveHtml}
   <div style="display:flex;align-items:baseline;justify-content:space-between;padding:26px 22px 12px">
   <h3 style="font-size:23px;text-transform:uppercase">${esc(t.collectionTitle)}</h3>
   <div onclick="goCollection()" data-hover style="display:flex;align-items:center;gap:4px;cursor:pointer">
