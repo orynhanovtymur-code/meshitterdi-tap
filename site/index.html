@@ -1680,10 +1680,10 @@ function dealDeck(source, pairsNeeded){
 }
 
 const XP_PER_LEVEL = 1000;
-function levelFromXP(xp){
-  xp = xp||0;
-  const level = Math.floor(xp / XP_PER_LEVEL) + 1;
-  const currentLevelXP = xp % XP_PER_LEVEL;
+function levelFromPoints(points){
+  points = points||0;
+  const level = Math.floor(points / XP_PER_LEVEL) + 1;
+  const currentLevelXP = points % XP_PER_LEVEL;
   return { level, currentLevelXP, xpToNext: XP_PER_LEVEL - currentLevelXP, totalForLevel: XP_PER_LEVEL };
 }
 
@@ -1697,8 +1697,8 @@ const PLAYER_TIERS = [
   {kz:'Таным шебері', ru:'Мастер познания'},
   {kz:'Данагөй', ru:'Мудрец'}
 ];
-function playerTierLabel(xp, lang, withStars){
-  const tier = Math.min(Math.max(levelFromXP(xp).level - 1, 0), 5);
+function playerTierLabel(points, lang, withStars){
+  const tier = Math.min(Math.max(levelFromPoints(points).level - 1, 0), 5);
   const name = PLAYER_TIERS[tier][lang];
   if(withStars===false) return name;
   const stars = '★'.repeat(tier) + '☆'.repeat(6-tier);
@@ -2022,7 +2022,7 @@ function screenHome(t,s){
   <div style="display:flex;align-items:center;gap:11px;padding:0 22px 18px">
   ${avatarRing(s.name, s.avatarUrl, 44, 'linear-gradient(150deg,#1B6B50,#0E3B2E)', 'linear-gradient(150deg,#1B6B50,#0E3B2E)', '#E7C765', 17, 3, 'box-shadow:0 8px 18px -6px rgba(14,59,46,.55)')}
   <div style="flex:1;min-width:0">
-  <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--mut)">${esc(playerTierLabel(s.xp, s.lang, false))}</div>
+  <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--mut)">${esc(playerTierLabel(s.coins, s.lang, false))}</div>
   <div style="font-family:var(--fh);font-size:20px;line-height:1.1;margin-top:1px">${esc(s.name)}</div></div>
   <div onclick="openCoinsModal()" data-hover style="display:flex;align-items:center;gap:5px;height:32px;padding:0 11px;border-radius:11px;background:var(--gold1);border:1px solid rgba(201,162,39,.34);color:#8A6E10;cursor:pointer">
   ${svg.coin}<span style="font-size:13px;font-weight:800;letter-spacing:.01em">${s.coins.toLocaleString('ru-RU')}</span></div>
@@ -2351,7 +2351,7 @@ function screenBoard(t,s){
 }
 
 function screenProfile(t,s){
-  const lvlInfo = levelFromXP(s.xp);
+  const lvlInfo = levelFromPoints(s.coins);
   const achList = computeAchievements(s);
   const achUnlockedCount = achList.filter(a=>a.unlocked).length;
   const achTotalCount = achList.length;
@@ -2361,7 +2361,7 @@ function screenProfile(t,s){
   <div style="position:relative;padding:24px 22px 22px;display:flex;align-items:center;gap:15px">
   <div onclick="goSettings()" data-hover style="cursor:pointer">${avatarRing(s.name, s.avatarUrl, 68, 'linear-gradient(150deg,#E7C765,#C9A227)', 'linear-gradient(150deg,#E7C765,#C9A227)', '#3A2D06', 26, 4, 'box-shadow:0 14px 28px -10px rgba(201,162,39,.7),inset 0 2px 0 rgba(255,255,255,.45)')}</div>
   <div style="flex:1;min-width:0">
-  <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.55)">${esc(playerTierLabel(s.xp, s.lang))}</div>
+  <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.55)">${esc(playerTierLabel(s.coins, s.lang))}</div>
   <h3 onclick="goSettings()" style="font-size:27px;color:#fff;text-transform:uppercase;cursor:pointer;margin-top:2px">${esc(s.name)}</h3>
   <div style="display:flex;align-items:center;gap:7px;margin-top:6px">
   <span style="height:21px;padding:0 8px;border-radius:6px;background:rgba(231,199,101,.16);border:1px solid rgba(231,199,101,.3);color:#E7C765;font-size:9.5px;font-weight:800;letter-spacing:.12em;display:flex;align-items:center;white-space:nowrap;flex:none">${esc(t.levelTag)} ${lvlInfo.level}</span>
