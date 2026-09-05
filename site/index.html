@@ -325,12 +325,10 @@ function setAuthMode(m){ state.authMode = m; state.authError=''; state.authInfo=
 
 async function submitRegister(e){
   e.preventDefault();
-  const name = document.getElementById('reg_name').value.trim();
-  const city = document.getElementById('reg_city').value.trim();
   const email = document.getElementById('reg_email').value.trim();
   const password = document.getElementById('reg_password').value;
   state.authError=''; state.authInfo='';
-  if(!name || !city || !email || !password){
+  if(!email || !password){
     state.authError = state.lang==='kz' ? 'Барлық өрісті толтырыңыз.' : 'Заполните все поля.';
     render(); return;
   }
@@ -340,11 +338,11 @@ async function submitRegister(e){
   }
   state.authLoading = true; render();
   try{
-    const { data, error } = await sb.auth.signUp({ email, password, options:{ data:{ name, city } } });
+    const { data, error } = await sb.auth.signUp({ email, password });
     if(error) throw error;
     if(data.session){
       state.email = data.session.user.email || email;
-      await hydratePlayer(data.session.user.id, {name, city});
+      await hydratePlayer(data.session.user.id);
       cloudReady = true;
       subscribeGlobalInvites();
       fetchMyRank();
@@ -2330,11 +2328,10 @@ function overlayNav(t,s){
 
 function renderRegisterForm(s){
   return `<form onsubmit="submitRegister(event)">
-  <div style="margin-bottom:12px"><label class="glabel">${s.lang==='kz'?'Аты-жөні':'Имя и фамилия'}</label><input id="reg_name" class="ginput" required></div>
-  <div style="margin-bottom:12px"><label class="glabel">${s.lang==='kz'?'Өңірі':'Регион'}</label><input id="reg_city" class="ginput" required></div>
   <div style="margin-bottom:12px"><label class="glabel">Email</label><input id="reg_email" type="email" class="ginput" required></div>
   <div style="margin-bottom:18px"><label class="glabel">${s.lang==='kz'?'Құпия сөз':'Пароль'}</label><input id="reg_password" type="password" class="ginput" required minlength="6"></div>
   <button type="submit" data-hover style="width:100%;height:52px;border-radius:18px;background:linear-gradient(150deg,#E7C765,#C9A227);font-family:var(--fh);font-size:17px;color:#3A2D06;text-transform:uppercase;letter-spacing:.03em;box-shadow:0 14px 26px -12px rgba(201,162,39,.65)" ${s.authLoading?'disabled':''}>${s.authLoading?'…':(s.lang==='kz'?'Тіркелу':'Зарегистрироваться')}</button>
+  <p style="margin:12px 0 0;font-size:11.5px;line-height:1.5;color:var(--mut);text-align:center">${s.lang==='kz'?'Атыңды және қалаңды кейін баптаулардан толтыра аласың.':'Имя и город можно будет указать позже в настройках.'}</p>
   </form>`;
 }
 function renderLoginForm(s){
