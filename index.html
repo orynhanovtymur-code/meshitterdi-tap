@@ -160,19 +160,6 @@ const LEVELS = [
   {id:'extreme',pairs:21, cols:6, seconds:300, reward:520, stars:0, g1:'#0E3B2E',g2:'#08251C'}
 ];
 
-// Жинақ (Collection) top-level categories. Only 'kzMosques' has real
-// content today (the existing ITEMS list); the rest are reserved slots
-// for future content and are shown locked with no fabricated numbers.
-const COLLECTION_CATEGORIES = [
-  {id:'kzMosques', active:true,  name:{kz:'Қазақстан мешіттері', ru:'Мечети Казахстана'}},
-  {id:'scholars',  active:false, name:{kz:'Қазақ даласының ғұламалары', ru:'Учёные казахской степи'}},
-  {id:'holyPlaces',active:false, name:{kz:'Қасиетті орындар', ru:'Святые места'}},
-  {id:'tradition', active:false, name:{kz:'Дін мен дәстүр', ru:'Религия и традиции'}},
-  {id:'islamHist', active:false, name:{kz:'Ислам тарихы', ru:'История ислама'}},
-  {id:'hajj',      active:false, name:{kz:'Қажылық', ru:'Хадж'}},
-  {id:'quran',     active:false, name:{kz:'Құран әлемі', ru:'Мир Корана'}}
-];
-
 
 const CHIP_ON = 'height:24px;padding:0 11px;border-radius:8px;background:#0E3B2E;color:#fff;font-size:10px;font-weight:800;letter-spacing:.1em;display:grid;place-items:center';
 const CHIP_OFF = 'height:24px;padding:0 11px;border-radius:8px;background:transparent;color:#657771;font-size:10px;font-weight:800;letter-spacing:.1em;display:grid;place-items:center';
@@ -798,8 +785,9 @@ function openTodayFactModal(){ state.showTodayFactModal = true; render(); }
 function closeTodayFactModal(){ state.showTodayFactModal = false; render(); }
 
 function openCollectionCategory(catId){
-  const cat = COLLECTION_CATEGORIES.find(c=>c.id===catId);
-  if(!cat || !cat.active){ toast(state.lang==='kz' ? 'Жақында қосылады' : 'Скоро будет доступно'); return; }
+  const cat = CATEGORIES.find(c=>c.id===catId);
+  const hasItems = cat && ITEMS.some(m=>m.categoryId===cat.id);
+  if(!cat || !hasItems){ toast(state.lang==='kz' ? 'Жақында қосылады' : 'Скоро будет доступно'); return; }
   setState({screen:'collectionGrid', viewCategoryId:catId});
 }
 function backToCollectionHub(){ setState({screen:'collection', viewCategoryId:null}); }
@@ -2457,11 +2445,13 @@ function screenCollection(t,s){
   const totalFound = s.found.length, totalAll = ITEMS.length;
   const pct = totalAll ? Math.round(totalFound/totalAll*100) : 0;
   const categoryRow = cat=>{
-    if(cat.active){
+    const catItems = ITEMS.filter(m=>m.categoryId===cat.id);
+    const catFound = catItems.filter(m=>s.found.indexOf(m.id)>-1).length;
+    if(catItems.length){
       return `<div onclick="openCollectionCategory('${cat.id}')" data-hover style="display:flex;align-items:center;gap:14px;padding:17px;border-radius:24px;background:var(--paper);border:1px solid var(--line);cursor:pointer;margin:0 18px 10px">
       <div style="width:48px;height:48px;border-radius:16px;background:var(--g1);border:1px solid var(--g2);display:grid;place-items:center;color:var(--g7);flex:none">${svg.collection}</div>
       <div style="flex:1;min-width:0"><div style="font-family:var(--fh);font-size:17px;text-transform:uppercase;line-height:1.15">${esc(cat.name[s.lang])}</div>
-      <div style="font-size:11.5px;color:var(--mut);margin-top:3px">${totalFound}/${totalAll}</div></div>
+      <div style="font-size:11.5px;color:var(--mut);margin-top:3px">${catFound}/${catItems.length}</div></div>
       ${svg.arrow.replaceAll('{{s}}','18').replace('{{c}}','#9AC7B3')}
       </div>`;
     }
@@ -2482,13 +2472,13 @@ function screenCollection(t,s){
   <div style="height:100%;width:${pct}%;border-radius:5px;background:linear-gradient(90deg,#C9A227,#E7C765)"></div>
   </div>
   </div>
-  ${COLLECTION_CATEGORIES.map(categoryRow).join('')}
+  ${CATEGORIES.map(categoryRow).join('')}
   </div>`;
 }
 
 function screenCollectionGrid(t,s){
-  const cat = COLLECTION_CATEGORIES.find(c=>c.id===s.viewCategoryId) || COLLECTION_CATEGORIES[0];
-  const items = ITEMS;
+  const cat = CATEGORIES.find(c=>c.id===s.viewCategoryId) || CATEGORIES[0] || {id:null,name:{kz:'',ru:''}};
+  const items = ITEMS.filter(m=>m.categoryId===cat.id);
   const collCard = m=>{
     const has = s.found.indexOf(m.id)>-1;
     return `<div ${has?`onclick="openItemDetail('${m.id}')" data-hover`:''} style="position:relative;aspect-ratio:1/1;border-radius:18px;overflow:hidden;background:var(--g2);border:1px solid var(--line);cursor:${has?'pointer':'default'}">
@@ -3121,7 +3111,7 @@ let tickTimer = setInterval(()=>{
 
 if(state.screen==='splash'){
   setTimeout(async ()=>{
-    await Promise.all([mosquesReady, authReady, avatarsReady]);
+    await Promise.all([mosquesReady, authReady, avatarsReady, categoriesReady]);
     if(state.screen==='splash'){
       setState({screen:'home'});
     }
