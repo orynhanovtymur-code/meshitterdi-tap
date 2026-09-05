@@ -190,6 +190,7 @@ let state = { screen:'splash', lang:'kz', coins:0, found:[], name:'Ойыншы'
   duelOpponentId:null, duelOpponentName:'', duelResult:null, duelResultFinalized:false, duelDeclinedMsg:'',
   duelPendingFriendId:null, duelPendingFriendName:'',
   duelIsBot:false, duelPendingIsBot:false, duelBotSeen:{},
+  duelCols:4, duelSeconds:0, duelLeft:0,
   duelStartedAt:null, duelJoinError:'', duelJoinLoading:false,
   friends:[], friendsLoading:false, globalChannel:null, livePlayers:[],
   showCoinsModal:false, showTodayFactModal:false, viewCategoryId:null, detailItemId:null,
@@ -951,6 +952,9 @@ function startBotDuel(levelId){
   state.duelResult = null;
   state.duelResultFinalized = false;
   state.duelBotSeen = {};
+  state.duelCols = L.cols;
+  state.duelSeconds = L.seconds;
+  state.duelLeft = L.seconds;
   state.duelError = '';
   enterDuelCountdown();
 }
@@ -1139,6 +1143,10 @@ function startDuelGameFromRoom(row){
   state.duelResult = null;
   state.duelResultFinalized = false;
   state.duelStartedAt = row.updated_at ? new Date(row.updated_at).getTime() : Date.now();
+  const L = levelFromPairs(row.pairs || 8);
+  state.duelCols = L.cols;
+  state.duelSeconds = L.seconds;
+  state.duelLeft = L.seconds;
   if(!state.duelOpponentId) state.duelOpponentId = state.duelRole==='host' ? row.guest_id : row.host_id;
   setState({screen:'duelGame'});
 }
@@ -1216,6 +1224,14 @@ function maybeFinishDuel(){
   if(!room) return;
   const pairs = room.pairs || 8;
   if(state.duelMatches.length < pairs) return;
+  settleDuel();
+}
+// Shared by "all pairs claimed" (maybeFinishDuel) and "time ran out"
+// (the tick timer below) -- both are just different reasons the duel
+// is over, the settling logic itself is identical either way.
+function settleDuel(){
+  const room = state.duelRoom;
+  if(!room) return;
   if(state.duelRole==='host' && room.status==='playing'){
     const myCount = state.duelMatches.filter(m=>m.claimed_by===state.playerId).length;
     const oppCount = state.duelMatches.length - myCount;
@@ -1316,6 +1332,11 @@ function setState(patch){ Object.assign(state, patch); render(); }
 function lvl(id){
   if(id==='stage') return LEVELS.find(l=>l.id===state.currentStageLevelId) || LEVELS[0];
   return LEVELS.find(l=>l.id===id) || LEVELS[0];
+}
+// duel_rooms only ever stores `pairs` (no cols/seconds column), so a
+// duel recovers the rest of its chosen level's shape from that count.
+function levelFromPairs(pairs){
+  return LEVELS.find(l=>l.pairs===pairs) || LEVELS[1];
 }
 
 let toastTimer = null;
@@ -2895,8 +2916,9 @@ function screenDuelCountdown(t,s){
 
 function screenDuelGame(t,s){
   const pairs = (s.duelRoom && s.duelRoom.pairs) || 8;
-  const cols = 4;
+  const cols = s.duelCols || 4;
   const rows = Math.ceil((pairs*2)/cols);
+  const duelLow = s.duelLeft<=15;
   const myCount = s.duelMatches.filter(m=>m.claimed_by===s.playerId).length;
   const oppCount = s.duelMatches.length - myCount;
   const cards = s.duelDeckIds.map((mosqueId,i)=>{
@@ -2922,6 +2944,8 @@ function screenDuelGame(t,s){
   <div style="padding:20px 18px 0">
   <div style="display:flex;align-items:center;gap:10px">
   <div onclick="confirmLeaveDuel()" data-hover style="width:36px;height:36px;border-radius:12px;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;cursor:pointer;color:var(--g8);flex:none">${svg.close}</div>
+  <div id="duelTimerPill" class="timerPill${duelLow?' low':''}" style="flex:none;width:64px;height:36px;border-radius:12px">
+  <span id="duelClockVal" style="font-family:var(--fh);font-size:14px;line-height:1;letter-spacing:.02em">${mm(s.duelLeft)}</span></div>
   <div style="flex:1;display:flex;align-items:center;height:36px;border-radius:12px;background:var(--g1);border:1px solid var(--g2);overflow:hidden">
   <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;height:100%;background:linear-gradient(150deg,#1B6B50,#0E3B2E)">
   <span style="font-family:var(--fh);font-size:15px;color:#fff">${myCount}</span><span style="font-size:9.5px;color:rgba(255,255,255,.65);text-transform:uppercase;letter-spacing:.05em">${s.lang==='kz'?'Сен':'Ты'}</span>
@@ -3014,17 +3038,27 @@ function paintScreen(s,t){
 
 let tickTimer = setInterval(()=>{
   const s = state;
-  if(s.screen!=='game' || s.sheet) return;
-  if(s.left<=0) return;
-  state.left -= 1;
-  state.elapsed += 1;
-  const clockEl = document.getElementById('clockVal');
-  if(clockEl) clockEl.textContent = mm(state.left);
-  const pillEl = document.getElementById('timerPill');
-  if(pillEl) pillEl.classList.toggle('low', state.left<=15);
-  if(state.left<=0){
-    state.locked = true;
-    finalizeRound(state.matched.length===state.cards.length);
+  if(s.screen==='game' && !s.sheet && s.left>0){
+    state.left -= 1;
+    state.elapsed += 1;
+    const clockEl = document.getElementById('clockVal');
+    if(clockEl) clockEl.textContent = mm(state.left);
+    const pillEl = document.getElementById('timerPill');
+    if(pillEl) pillEl.classList.toggle('low', state.left<=15);
+    if(state.left<=0){
+      state.locked = true;
+      finalizeRound(state.matched.length===state.cards.length);
+    }
+  }
+  if(s.screen==='duelGame' && s.duelLeft>0){
+    state.duelLeft -= 1;
+    const dClockEl = document.getElementById('duelClockVal');
+    if(dClockEl) dClockEl.textContent = mm(state.duelLeft);
+    const dPillEl = document.getElementById('duelTimerPill');
+    if(dPillEl) dPillEl.classList.toggle('low', state.duelLeft<=15);
+    if(state.duelLeft<=0 && !state.duelResultFinalized){
+      settleDuel();
+    }
   }
 },1000);
 
