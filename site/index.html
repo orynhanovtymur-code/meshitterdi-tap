@@ -127,12 +127,12 @@ const STR = {
     easyDesc:'Алғашқы қадамға арналған жеңіл деңгей.',mediumDesc:'Зейін мен есте сақтауды сынайды.',hardDesc:'Уақыт шектеулі. Әр жұпқа ×2 ұпай.',
     foundPair:'Жұп табылды',continueBtn:'Жалғастыру',
     victoryTitle:'Керемет!',victoryDescT:'{n} жұпты тауып шықтың',timeUpTitle:'Уақыт бітті!',
-    score:'Ұпай',time:'Уақыт',moves:'Қадам',coins:'Монета',newCardUnlocked:'Жаңа карточка ашылды',
+    score:'Ұпай',time:'Уақыт',moves:'Қадам',coins:'Ұпай',newCardUnlocked:'Жаңа карточка ашылды',
     nextLevel:'Келесі кезең',replay:'Қайта ойнау',share:'Бөлісу',
     home:'Басты',games:'Ойнау',rating:'Рейтинг',profile:'Профиль',navColl:'Жинақ',
-    globalTop:'Үздік ойыншылар',overallRating:'Жалпы рейтинг',levelTag:'Деңгей',xpToNext:'Келесі деңгейге',
+    globalTop:'Үздік ойыншылар',overallRating:'Жалпы рейтинг',
     gamesPlayed:'Ойналған ойын',bestTime:'Үздік нәтиже',mosquesFound:'Жиналған карточка',
-    invite:'Доспен ойна',inviteDesc:'Әр досқа 200 монета',inviteBtn:'Ойын құру',inviteJoinBtn:'Кодпен қосылу',language:'Тіл',
+    invite:'Доспен ойна',inviteDesc:'Әр досқа 200 ұпай',inviteBtn:'Ойын құру',inviteJoinBtn:'Кодпен қосылу',language:'Тіл',
     shared:'Нәтиже көшірілді — досыңмен бөліс!'},
   ru:{appName:'ДІН МЕН ДӘСТҮР',splashTag:'Играй. Познавай. Учись.',loading:'Загрузка',
     greeting:'Добрый день',heroKicker:'Познавательная игра',heroDesc:'Открывай карточки и находи подходящие пары. С каждой парой узнавай новый факт.',
@@ -143,12 +143,12 @@ const STR = {
     easyDesc:'Лёгкий уровень для первого шага.',mediumDesc:'Проверяет внимание и память.',hardDesc:'Время ограничено. Каждая пара ×2 очков.',
     foundPair:'Пара найдена',continueBtn:'Продолжить',
     victoryTitle:'Отлично!',victoryDescT:'Ты собрал {n} пар',timeUpTitle:'Время вышло!',
-    score:'Очки',time:'Время',moves:'Ходы',coins:'Монеты',newCardUnlocked:'Новая карточка открыта',
+    score:'Очки',time:'Время',moves:'Ходы',coins:'Очки',newCardUnlocked:'Новая карточка открыта',
     nextLevel:'Следующий этап',replay:'Играть заново',share:'Поделиться',
     home:'Главная',games:'Играть',rating:'Рейтинг',profile:'Профиль',navColl:'Коллекция',
-    globalTop:'Лучшие игроки',overallRating:'Общий рейтинг',levelTag:'Уровень',xpToNext:'До след. уровня',
+    globalTop:'Лучшие игроки',overallRating:'Общий рейтинг',
     gamesPlayed:'Сыграно игр',bestTime:'Лучший результат',mosquesFound:'Собрано карточек',
-    invite:'Играть с другом',inviteDesc:'200 монет за друга',inviteBtn:'Создать игру',inviteJoinBtn:'Войти по коду',language:'Язык',
+    invite:'Играть с другом',inviteDesc:'200 очков за друга',inviteBtn:'Создать игру',inviteJoinBtn:'Войти по коду',language:'Язык',
     shared:'Результат скопирован — поделись с другом!'}
 };
 
@@ -180,7 +180,7 @@ function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').rep
 let state = { screen:'splash', lang:'kz', coins:1240, found:[], name:'Ойыншы', city:'', email:'',
   playerId:null, bestScore:0, leaderboard:null, boardFilter:'all', myRank:null, unlockedStage:1, currentStage:null,
   gamesPlayed:0, bestTimeSeconds:null,
-  xp:0, hasFlawlessWin:false, hasFastWin:false, currentStreak:0, lastPlayedDate:null,
+  hasFlawlessWin:false, hasFastWin:false, currentStreak:0, lastPlayedDate:null,
   weeklyScore:0, weeklyScoreWeek:null, claimedAchievements:[], screenBeforeAchievements:'profile', screenBeforeCollection:'profile',
   categoryList:[], dailyChallenge:null,
   authMode:'register', authError:'', authInfo:'', authLoading:false,
@@ -196,7 +196,7 @@ let state = { screen:'splash', lang:'kz', coins:1240, found:[], name:'Ойынш
   inviteLoading:false, inviteInfo:'', myFriendCode:null,
   addFriendError:'', addFriendInfo:'', addFriendLoading:false,
   levelId:'easy', pendingLevelId:'easy', currentStageLevelId:'easy', cards:[], flipped:[], matched:[], justMatched:[],
-  moves:0, left:90, elapsed:0, sheet:null, score:0, earned:0, xpGain:0, stars:3, toast:null, locked:false,
+  moves:0, left:90, elapsed:0, sheet:null, score:0, earned:0, stars:3, toast:null, locked:false,
   firstNewCardThisGame:null, resultFinalized:false };
 
 try{
@@ -236,7 +236,6 @@ function persistCloud(){
       unlocked_stage: state.unlockedStage||1,
       games_played: state.gamesPlayed||0,
       best_time_seconds: state.bestTimeSeconds,
-      xp: state.xp||0,
       has_flawless_win: !!state.hasFlawlessWin,
       has_fast_win: !!state.hasFastWin,
       current_streak: state.currentStreak||0,
@@ -268,7 +267,7 @@ async function hydratePlayer(uid, defaults){
       city: (defaults && defaults.city) || state.city || null,
       lang: state.lang, coins: state.coins, found: state.found, best_score: state.bestScore||0,
       unlocked_stage: state.unlockedStage||1, games_played: state.gamesPlayed||0,
-      best_time_seconds: state.bestTimeSeconds, xp: state.xp||0
+      best_time_seconds: state.bestTimeSeconds
     };
     const { data: created, error } = await sb.from('players').insert(insertRow).select().maybeSingle();
     if(error) throw error;
@@ -284,7 +283,6 @@ async function hydratePlayer(uid, defaults){
     state.unlockedStage = row.unlocked_stage || state.unlockedStage || 1;
     state.gamesPlayed = row.games_played || 0;
     state.bestTimeSeconds = row.best_time_seconds!=null ? row.best_time_seconds : null;
-    state.xp = row.xp || 0;
     state.hasFlawlessWin = !!row.has_flawless_win;
     state.hasFastWin = !!row.has_fast_win;
     state.currentStreak = row.current_streak || 0;
@@ -1304,7 +1302,7 @@ function flip(i){
 // Ends the current round exactly once and writes its result to the
 // player's real, persisted stats. Guarded by state.resultFinalized so
 // a double-tap, a stray timer tick, or any other re-entry can never
-// award coins/XP/stage-unlock twice for the same round.
+// award coins/stage-unlock twice for the same round.
 function finalizeRound(completed){
   if(state.resultFinalized) return;
   state.resultFinalized = true;
@@ -1343,12 +1341,9 @@ function finalizeRound(completed){
   if(state.weeklyScoreWeek !== week){ state.weeklyScoreWeek = week; state.weeklyScore = 0; }
   state.weeklyScore = Math.max(state.weeklyScore||0, finalScore);
 
-  const xpGain = completionReward;
-  state.xp = (state.xp||0) + xpGain;
-
   const persistPatch = {
     coins, gamesPlayed:state.gamesPlayed, bestTimeSeconds:state.bestTimeSeconds,
-    xp:state.xp, hasFlawlessWin:state.hasFlawlessWin, hasFastWin:state.hasFastWin,
+    hasFlawlessWin:state.hasFlawlessWin, hasFastWin:state.hasFastWin,
     currentStreak:state.currentStreak, lastPlayedDate:state.lastPlayedDate,
     weeklyScore:state.weeklyScore, weeklyScoreWeek:state.weeklyScoreWeek
   };
@@ -1358,7 +1353,7 @@ function finalizeRound(completed){
   }
   persist(persistPatch);
   if(completed) updateDailyChallenge({levelId:s.levelId, elapsed:s.elapsed, flawless:(s.moves===totalPairs), totalPairs});
-  setState({sheet:null,screen:'victory',score:finalScore,stars,earned:completionReward,coins,xpGain});
+  setState({sheet:null,screen:'victory',score:finalScore,stars,earned:completionReward,coins});
   fetchMyRank();
   claimNewAchievements();
 }
@@ -1479,14 +1474,6 @@ function dealDeck(source, pairsNeeded){
   return cards.map((m,i)=>({key:m.id+'-'+i,m})).sort(()=>Math.random()-0.5);
 }
 
-const XP_PER_LEVEL = 1000;
-function levelFromXP(xp){
-  xp = xp||0;
-  const level = Math.floor(xp / XP_PER_LEVEL) + 1;
-  const currentLevelXP = xp % XP_PER_LEVEL;
-  return { level, currentLevelXP, xpToNext: XP_PER_LEVEL - currentLevelXP, totalForLevel: XP_PER_LEVEL };
-}
-
 function completedCategoryCount(s){
   const byCat = {};
   ITEMS.forEach(m=>{ if(!m.categoryId) return; (byCat[m.categoryId]=byCat[m.categoryId]||[]).push(m.id); });
@@ -1502,32 +1489,32 @@ function computeAchievements(s){
       titleKz:'Алғашқы жеңіс', titleRu:'Первая победа',
       descKz:'Алғашқы ойынды аяқта.', descRu:'Заверши первую игру.',
       icon:svg.trophy, progress:Math.min(s.gamesPlayed||0,1), target:1, unlocked:(s.gamesPlayed||0)>=1,
-      rewardCoins:50, rewardXP:50 },
+      rewardCoins:50 },
     { id:'flawless',
       titleKz:'Зерек ойыншы', titleRu:'Внимательный игрок',
       descKz:'Ойынды қатесіз аяқта.', descRu:'Заверши игру без ошибок.',
       icon:svg.starSolid, progress:s.hasFlawlessWin?1:0, target:1, unlocked:!!s.hasFlawlessWin,
-      rewardCoins:100, rewardXP:100 },
+      rewardCoins:100 },
     { id:'fast',
       titleKz:'Жылдам ойыншы', titleRu:'Быстрый игрок',
       descKz:'60 секундтан аз уақытта аяқта.', descRu:'Заверши игру быстрее чем за 60 секунд.',
       icon:svg.clock, progress:s.hasFastWin?1:0, target:1, unlocked:!!s.hasFastWin,
-      rewardCoins:100, rewardXP:100 },
+      rewardCoins:100 },
     { id:'streak7',
       titleKz:'7 күн қатарынан', titleRu:'7 дней подряд',
       descKz:'7 күн қатарынан ойна.', descRu:'Играй 7 дней подряд.',
       icon:svg.reward, progress:Math.min(s.currentStreak||0,7), target:7, unlocked:(s.currentStreak||0)>=7,
-      rewardCoins:200, rewardXP:200 },
+      rewardCoins:200 },
     { id:'explorer',
       titleKz:'Зерттеуші', titleRu:'Исследователь',
       descKz:'Бір жинақты толық аяқта.', descRu:'Собери одну коллекцию полностью.',
       icon:svg.mosqueThin, progress:Math.min(completedCategoryCount(s),1), target:1, unlocked:completedCategoryCount(s)>=1,
-      rewardCoins:150, rewardXP:150 },
+      rewardCoins:150 },
     { id:'collector',
       titleKz:'Жинақтаушы', titleRu:'Коллекционер',
       descKz:'10 карточка аш.', descRu:'Открой 10 карточек.',
       icon:svg.invite, progress:Math.min(s.found.length||0,10), target:10, unlocked:(s.found.length||0)>=10,
-      rewardCoins:100, rewardXP:100 }
+      rewardCoins:100 }
   ];
   list.forEach(a=>{
     const rec = claimed.find(c=>c.id===a.id);
@@ -1536,7 +1523,7 @@ function computeAchievements(s){
   return list;
 }
 
-// Grants each achievement's one-time coin/XP reward exactly once, ever.
+// Grants each achievement's one-time reward exactly once, ever.
 // Persisted in players.claimed_achievements, so a refresh or a later
 // session can never re-trigger the same reward for the same player.
 function claimNewAchievements(){
@@ -1548,15 +1535,14 @@ function claimNewAchievements(){
   const now = new Date().toISOString();
   newlyUnlocked.forEach(a=>{
     state.coins = (state.coins||0) + (a.rewardCoins||0);
-    state.xp = (state.xp||0) + (a.rewardXP||0);
     claimed.push({id:a.id, unlockedAt:now});
   });
   state.claimedAchievements = claimed;
-  persist({coins:state.coins, xp:state.xp, claimedAchievements:state.claimedAchievements});
+  persist({coins:state.coins, claimedAchievements:state.claimedAchievements});
   newlyUnlocked.forEach((a,i)=>{
     setTimeout(()=>{
       const title = state.lang==='kz'?a.titleKz:a.titleRu;
-      const msg = (state.lang==='kz'?'Жаңа жетістік! ':'Новое достижение! ')+title+' — +'+a.rewardCoins+' '+(state.lang==='kz'?'монета':'монет')+', +'+a.rewardXP+' XP';
+      const msg = (state.lang==='kz'?'Жаңа жетістік! ':'Новое достижение! ')+title+' — +'+a.rewardCoins+' '+(state.lang==='kz'?'ұпай':'очков');
       toast(msg);
     }, 900 + i*2800);
   });
@@ -1957,9 +1943,6 @@ function screenVictory(t,s){
   <div style="text-align:left"><div style="font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.45)">${esc(t.time)}</div><div style="font-family:var(--fh);font-size:30px;color:#fff;line-height:1.05;margin-top:3px">${mm(s.elapsed)}</div></div>
   <div style="text-align:left"><div style="font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.45)">${esc(t.coins)}</div><div style="font-family:var(--fh);font-size:30px;color:#E7C765;line-height:1.05;margin-top:3px">+${s.earned}</div></div>
   </div></div>
-  <div style="margin-top:12px;display:flex;justify-content:center">
-  <span style="display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);font-family:var(--fh);font-size:15px">+${s.xpGain||0} XP</span>
-  </div>
   ${s.firstNewCardThisGame?`<div style="margin-top:18px;padding:16px;border-radius:22px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);text-align:left">
   <div style="font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:#E7C765;font-weight:800;margin-bottom:10px">${esc(t.newCardUnlocked)}</div>
   <div style="display:flex;gap:12px;align-items:center">
@@ -2064,7 +2047,6 @@ function screenBoard(t,s){
 }
 
 function screenProfile(t,s){
-  const lvlInfo = levelFromXP(s.xp);
   const achList = computeAchievements(s);
   const achUnlockedCount = achList.filter(a=>a.unlocked).length;
   const achTotalCount = achList.length;
@@ -2076,16 +2058,10 @@ function screenProfile(t,s){
   <div style="flex:1;min-width:0">
   <h3 onclick="goSettings()" style="font-size:27px;color:#fff;text-transform:uppercase;cursor:pointer">${esc(s.name)}</h3>
   <div style="display:flex;align-items:center;gap:7px;margin-top:6px">
-  <span style="height:21px;padding:0 8px;border-radius:6px;background:rgba(231,199,101,.16);border:1px solid rgba(231,199,101,.3);color:#E7C765;font-size:9.5px;font-weight:800;letter-spacing:.12em;display:flex;align-items:center;white-space:nowrap;flex:none">${esc(t.levelTag)} ${lvlInfo.level}</span>
   <span style="font-size:11.5px;font-weight:700;color:rgba(255,255,255,.75)">${s.myRank?(s.myRank+'-'+t.rank+' · '+t.overallRating):t.overallRating}</span></div>
   ${s.city?`<div style="margin-top:6px;display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:rgba(255,255,255,.5)">${svg.pin} ${esc(s.city)}</div>`:''}
   </div></div>
-  <div style="position:relative;padding:0 22px 20px">
-  <div style="height:5px;border-radius:4px;background:rgba(255,255,255,.14);overflow:hidden"><div style="height:100%;width:${Math.round(lvlInfo.currentLevelXP/lvlInfo.totalForLevel*100)}%;border-radius:4px;background:linear-gradient(90deg,#C9A227,#E7C765)"></div></div>
-  <div style="display:flex;justify-content:space-between;margin-top:7px;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.42)">
-  <span>${esc(t.xpToNext)}</span><span>${lvlInfo.currentLevelXP} / ${lvlInfo.totalForLevel}</span></div></div>
-  </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px 18px 0">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:20px 18px 22px">
   <div style="padding:15px;border-radius:22px;background:var(--paper);border:1px solid var(--line)">
   <div style="color:var(--g6)">${svg.games}</div><div style="font-family:var(--fh);font-size:28px;margin-top:9px;line-height:1">${s.gamesPlayed||0}</div>
   <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--mut);margin-top:3px">${esc(t.gamesPlayed)}</div></div>
@@ -2233,14 +2209,14 @@ function overlayCoinsModal(t,s){
   <div style="position:absolute;left:20px;right:20px;bottom:24px;border-radius:26px;background:var(--cream);box-shadow:0 -10px 40px -10px rgba(8,37,28,.5);padding:22px;animation:up .3s cubic-bezier(.2,.85,.2,1) both">
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
   <div style="width:44px;height:44px;border-radius:16px;background:var(--gold1);border:1px solid rgba(201,162,39,.32);display:grid;place-items:center;color:#8A6E10;flex:none">${svg.coin}</div>
-  <h3 style="font-size:19px;text-transform:uppercase;flex:1">${s.lang==='kz'?'Монеталар':'Монеты'}</h3>
+  <h3 style="font-size:19px;text-transform:uppercase;flex:1">${s.lang==='kz'?'Ұпайлар':'Очки'}</h3>
   <div onclick="closeCoinsModal()" data-hover style="width:32px;height:32px;border-radius:11px;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;cursor:pointer;color:var(--g8)">${svg.close}</div>
   </div>
   <div style="font-family:var(--fh);font-size:30px;color:#8A6E10;margin:6px 0 10px">${s.coins.toLocaleString('ru-RU')}</div>
   <p style="margin:0;font-size:13px;line-height:1.6;color:var(--ink)">${s.lang==='kz'
-    ? 'Ойын ойнап, күнделікті сындарды орындап және жетістіктер ашып монета жина.'
-    : 'Играй, выполняй ежедневные испытания и открывай достижения, чтобы копить монеты.'}</p>
-  <h4 style="margin:18px 0 10px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--g7)">${s.lang==='kz'?'Монетаны қайда қолдануға болады?':'Где можно использовать монеты?'}</h4>
+    ? 'Ойын ойнап, күнделікті сындарды орындап және жетістіктер ашып ұпай жина.'
+    : 'Играй, выполняй ежедневные испытания и открывай достижения, чтобы копить очки.'}</p>
+  <h4 style="margin:18px 0 10px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--g7)">${s.lang==='kz'?'Ұпайды қайда қолдануға болады?':'Где можно использовать очки?'}</h4>
   <div style="display:flex;flex-direction:column;gap:9px">
   ${[
     s.lang==='kz' ? 'Жаңа жинақтарды ашу' : 'Открывать новые коллекции',
@@ -2378,7 +2354,7 @@ function screenAchievements(t,s){
     <div style="height:4px;border-radius:3px;background:var(--g2);overflow:hidden;margin-top:8px"><div style="height:100%;width:${pct}%;border-radius:3px;background:${a.unlocked?'linear-gradient(90deg,#5AA184,#2E8365)':'linear-gradient(90deg,#C9A227,#E7C765)'}"></div></div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px">
     <span style="font-size:10px;color:var(--mut)">${a.progress}/${a.target}</span>
-    <span style="font-size:10px;font-weight:800;color:#8A6E10">+${a.rewardCoins} ${s.lang==='kz'?'монета':'монет'} · +${a.rewardXP} XP</span>
+    <span style="font-size:10px;font-weight:800;color:#8A6E10">+${a.rewardCoins} ${s.lang==='kz'?'ұпай':'очков'}</span>
     </div>
     ${a.unlocked&&a.unlockedAt?`<div style="font-size:10px;color:#2E8365;margin-top:5px;font-weight:700">${s.lang==='kz'?'Ашылды: ':'Открыто: '}${esc(fmtDate(a.unlockedAt))}</div>`:''}
     </div>
