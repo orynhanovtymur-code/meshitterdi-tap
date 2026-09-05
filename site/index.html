@@ -408,7 +408,7 @@ async function logout(){
     localStorage.removeItem('mmt:city');
     localStorage.removeItem('mmt:unlockedStage');
   }catch(e){}
-  setState({screen:'auth'});
+  setState({screen:'home'});
 }
 
 async function fetchLeaderboard(filter){
@@ -714,7 +714,18 @@ function openItemDetail(id){
 }
 function closeItemDetail(){ setState({detailItemId:null}); }
 
+// Home/Board/Collection/Achievements are all browsable as a guest.
+// Only actions that actually start a game (solo or multiplayer)
+// require a real account -- this gate gets called right at that
+// moment instead of blocking the whole app up front.
+function requireAuth(){
+  if(state.playerId) return true;
+  setState({screen:'auth'});
+  return false;
+}
+
 function goDuelMenu(){
+  if(!requireAuth()) return;
   state.duelError=''; state.duelRoom=null; state.duelRole=null; state.duelDeclinedMsg='';
   teardownDuelChannel();
   setState({screen:'duelMenu'});
@@ -738,7 +749,8 @@ function leaveDuel(){
 }
 
 async function createDuelRoom(){
-  if(!sb || !state.playerId || state.duelLoading) return;
+  if(!requireAuth()) return;
+  if(!sb || state.duelLoading) return;
   state.duelError=''; state.duelLoading=true; render();
   const L = lvl('medium');
   const pairs = Math.max(1, Math.min(L.pairs, ITEMS.length));
@@ -783,6 +795,7 @@ async function hostStartRoomCountdown(){
 }
 
 function goJoinRoom(){
+  if(!requireAuth()) return;
   state.duelJoinError=''; state.duelJoinLoading=false;
   setState({screen:'duelJoin'});
 }
@@ -1660,7 +1673,7 @@ async function loadDefaultItems(){
 const mosquesReady = loadDefaultItems();
 
 function goLevels(){ setState({screen:'levels'}); }
-function chooseLevelStep1(id){ setState({pendingLevelId:id, screen:'stages'}); }
+function chooseLevelStep1(id){ if(!requireAuth()) return; setState({pendingLevelId:id, screen:'stages'}); }
 
 function mm(n){ return Math.floor(n/60)+':'+String(n%60).padStart(2,'0'); }
 function initials(n){ const w=n.trim().split(/\s+/); return (w.length>1? w[0][0]+w[1][0] : n.slice(0,2)).toUpperCase(); }
@@ -2337,6 +2350,7 @@ function screenAuth(t,s){
   return `<div class="sc" style="position:absolute;inset:0;overflow-y:auto;background:var(--cream);animation:fade .3s ease">
   <div style="position:relative;padding:44px 24px 28px;text-align:center;background:linear-gradient(168deg,#14523E 0%,#0E3B2E 46%,#08251C 100%);overflow:hidden">
   <div style="position:absolute;inset:0;opacity:.4;background:repeating-conic-gradient(from 22.5deg at 50% 20%,rgba(255,255,255,.055) 0deg 11deg,transparent 11deg 22.5deg)"></div>
+  <div onclick="goHome()" data-hover style="position:absolute;top:16px;right:16px;width:34px;height:34px;border-radius:12px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);display:grid;place-items:center;cursor:pointer;color:#fff">${svg.close}</div>
   <div style="position:relative;width:60px;height:60px;margin:0 auto;border-radius:20px;background:linear-gradient(150deg,rgba(255,255,255,.22),rgba(255,255,255,.04));border:1px solid rgba(231,199,101,.42);display:grid;place-items:center;color:#E7C765">
   <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-8.2M20 21v-8.2M4.2 12.8C4.2 8.4 7.7 4.9 12 4.9s7.8 3.5 7.8 7.9M12 4.9V2.4M1.8 21h20.4M9 21v-3.7a3 3 0 0 1 6 0V21"/></svg>
   </div>
@@ -2784,7 +2798,7 @@ if(state.screen==='splash'){
   setTimeout(async ()=>{
     await Promise.all([mosquesReady, authReady]);
     if(state.screen==='splash'){
-      setState({screen: (sb && state.playerId) ? 'home' : 'auth'});
+      setState({screen:'home'});
     }
   },2300);
 }
