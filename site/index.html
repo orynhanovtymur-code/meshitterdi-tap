@@ -2360,9 +2360,13 @@ function screenAchievements(t,s){
   const unlockedCount = list.filter(a=>a.unlocked).length;
   const totalCount = list.length;
   const pctOverall = totalCount ? Math.round(unlockedCount/totalCount*100) : 0;
+  const monthsKz = ['қаңтар','ақпан','наурыз','сәуір','мамыр','маусым','шілде','тамыз','қыркүйек','қазан','қараша','желтоқсан'];
+  const monthsRu = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
   const fmtDate = iso=>{
-    try{ return new Date(iso).toLocaleDateString(s.lang==='kz'?'kk-KZ':'ru-RU', {day:'numeric', month:'long', year:'numeric'}); }
-    catch(e){ return ''; }
+    const d = new Date(iso);
+    if(isNaN(d.getTime())) return '';
+    const months = s.lang==='kz' ? monthsKz : monthsRu;
+    return d.getDate()+' '+months[d.getMonth()]+' '+d.getFullYear();
   };
   const rows = list.map(a=>{
     const pct = a.target ? Math.round(a.progress/a.target*100) : 0;
