@@ -1786,15 +1786,26 @@ function screenHome(t,s){
   ${svg.arrow.replaceAll('{{s}}','13').replace('{{c}}','#1B6B50')}
   </div>
   </div>` : '';
-  const liveCards = (s.livePlayers||[]).map(p=>`
+  const realLive = (s.livePlayers||[]).map(p=>Object.assign({isBot:false},p));
+  const botsNeeded = Math.max(0, 3-realLive.length);
+  const botNames = [
+    {kz:'Жасанды ойыншы 1',ru:'Бот-игрок 1'},
+    {kz:'Жасанды ойыншы 2',ru:'Бот-игрок 2'},
+    {kz:'Жасанды ойыншы 3',ru:'Бот-игрок 3'}
+  ];
+  const botCards = botNames.slice(0,botsNeeded).map((n,i)=>({id:'bot'+i, name:n[s.lang], isBot:true}));
+  const displayLive = realLive.concat(botCards);
+  const liveCards = displayLive.map(p=>`
   <div style="flex:none;width:104px;padding:12px 10px;border-radius:18px;background:var(--g1);border:1px solid var(--g2);text-align:center">
   <div style="position:relative;width:40px;height:40px;margin:0 auto">
   <div style="width:100%;height:100%;border-radius:14px;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;font-family:var(--fh);font-size:14px;color:var(--g7)">${esc(initials(p.name))}</div>
-  <span style="position:absolute;bottom:-1px;right:-1px;width:10px;height:10px;border-radius:50%;background:#2E8365;border:2px solid var(--g1)"></span>
+  ${p.isBot?'':'<span style="position:absolute;bottom:-1px;right:-1px;width:10px;height:10px;border-radius:50%;background:#2E8365;border:2px solid var(--g1)"></span>'}
   </div>
   <div style="margin-top:8px;font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</div>
-  <div style="font-size:10.5px;color:var(--mut);margin-top:2px">${p.coins.toLocaleString('ru-RU')} ${s.lang==='kz'?'ұпай':'очков'}</div>
-  <div onclick="inviteLivePlayer('${p.id}','${esc(p.name).replace(/'/g,"\'")}')" data-hover style="margin-top:8px;height:28px;border-radius:10px;background:linear-gradient(150deg,#1B6B50,#0E3B2E);display:grid;place-items:center;cursor:pointer">
+  ${p.isBot
+    ? `<div style="font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);margin-top:2px">${s.lang==='kz'?'Бот':'Бот'}</div>`
+    : `<div style="font-size:10.5px;color:var(--mut);margin-top:2px">${p.coins.toLocaleString('ru-RU')} ${s.lang==='kz'?'ұпай':'очков'}</div>`}
+  <div onclick="${p.isBot?'goLevels()':`inviteLivePlayer('${p.id}','${esc(p.name).replace(/'/g,"\'")}')`}" data-hover style="margin-top:8px;height:28px;border-radius:10px;background:linear-gradient(150deg,#1B6B50,#0E3B2E);display:grid;place-items:center;cursor:pointer">
   <span style="font-size:10px;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:.03em">${s.lang==='kz'?'Ойнау':'Играть'}</span>
   </div>
   </div>`).join('');
@@ -1803,9 +1814,7 @@ function screenHome(t,s){
   <span style="font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--g6);font-weight:800">${s.lang==='kz'?'Live ойыншылар':'Live игроки'}</span>
   <div onclick="refreshLivePlayers()" data-hover style="width:28px;height:28px;border-radius:9px;background:var(--g1);border:1px solid var(--g2);display:grid;place-items:center;cursor:pointer;color:var(--g7)">${svg.replay}</div>
   </div>
-  ${(s.livePlayers||[]).length
-    ? `<div class="sc" style="display:flex;gap:10px;margin-top:12px;overflow-x:auto">${liveCards}</div>`
-    : `<div style="margin-top:12px;text-align:center;padding:10px 4px;color:var(--mut);font-size:12px;line-height:1.6">${s.lang==='kz'?'Қазір ешкім онлайн емес.':'Сейчас никого нет онлайн.'}</div>`}
+  <div class="sc" style="display:flex;gap:10px;margin-top:12px;overflow-x:auto">${liveCards}</div>
   </div>`;
   const collHtml = ITEMS.map(m=>{
     const has = s.found.indexOf(m.id)>-1;
