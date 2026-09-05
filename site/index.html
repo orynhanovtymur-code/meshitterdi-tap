@@ -1757,6 +1757,17 @@ function avatarBox(name, url, size, radius, fallbackBg, fallbackColor, fontSize,
   }
   return `<div style="width:${size}px;height:${size}px;border-radius:${radius}px;display:grid;place-items:center;font-family:var(--fh);font-size:${fontSize}px;flex:none;background:${fallbackBg};color:${fallbackColor};${extraStyle}">${esc(initials(name))}</div>`;
 }
+// Same circular ring frame used everywhere a player's avatar shows --
+// a padded, perfectly round frame around the avatar (real image or
+// initials fallback), so every avatar in the app has one consistent
+// shape and treatment. ringBg is the frame's own color/gradient.
+function avatarRing(name, url, outerSize, ringBg, fallbackBg, fallbackColor, fontSize, ringPad, ringExtraStyle){
+  ringPad = ringPad==null ? Math.max(2, Math.round(outerSize*0.045)) : ringPad;
+  ringExtraStyle = ringExtraStyle || '';
+  const innerSize = outerSize - ringPad*2;
+  const inner = avatarBox(name, url, innerSize, Math.round(innerSize/2), fallbackBg, fallbackColor, fontSize, 'border:2px solid var(--cream)');
+  return `<div style="width:${outerSize}px;height:${outerSize}px;min-width:${outerSize}px;border-radius:50%;padding:${ringPad}px;background:${ringBg};flex:none;${ringExtraStyle}">${inner}</div>`;
+}
 function chooseAvatar(url){
   state.avatarUrl = url;
   persist({});
@@ -1836,9 +1847,7 @@ function screenHome(t,s){
   const displayLive = realLive.concat(botCards);
   const liveCards = displayLive.map(p=>`
   <div onclick="${p.isBot?'goLevels()':`inviteLivePlayer('${p.id}','${esc(p.name).replace(/'/g,"\'")}')`}" data-hover style="flex:none;width:78px;text-align:center;cursor:pointer">
-  <div style="width:68px;height:68px;margin:0 auto;border-radius:50%;padding:3px;background:${p.isBot?'var(--g2)':'linear-gradient(150deg,#5AA184,#0E3B2E)'}">
-  ${avatarBox(p.name, p.avatarUrl, 62, 31, (p.isBot?p.botColor:'var(--paper)'), (p.isBot?'#fff':'var(--g7)'), 19, 'border:2px solid var(--cream)')}
-  </div>
+  <div style="margin:0 auto;width:68px">${avatarRing(p.name, p.avatarUrl, 68, (p.isBot?'var(--g2)':'linear-gradient(150deg,#5AA184,#0E3B2E)'), (p.isBot?p.botColor:'var(--paper)'), (p.isBot?'#fff':'var(--g7)'), 19)}</div>
   <div style="margin-top:8px;font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</div>
   ${p.isBot
     ? `<div style="font-size:9.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--mut);margin-top:1px">${s.lang==='kz'?'Бот':'Бот'}</div>`
@@ -1864,7 +1873,7 @@ function screenHome(t,s){
   }).join('');
   return `<div class="sc" style="position:absolute;inset:0;overflow-y:auto;padding:24px 0 104px;animation:fade .3s ease">
   <div style="display:flex;align-items:center;gap:11px;padding:0 22px 18px">
-  ${avatarBox(s.name, s.avatarUrl, 44, 15, 'linear-gradient(150deg,#1B6B50,#0E3B2E)', '#E7C765', 17, 'box-shadow:0 8px 18px -6px rgba(14,59,46,.55)')}
+  ${avatarRing(s.name, s.avatarUrl, 44, 'linear-gradient(150deg,#1B6B50,#0E3B2E)', 'linear-gradient(150deg,#1B6B50,#0E3B2E)', '#E7C765', 17, 3, 'box-shadow:0 8px 18px -6px rgba(14,59,46,.55)')}
   <div style="flex:1;min-width:0">
   <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--mut)">${esc(t.greeting)}</div>
   <div style="font-family:var(--fh);font-size:20px;line-height:1.1;margin-top:1px">${esc(s.name)}</div></div>
@@ -2138,15 +2147,15 @@ function screenBoard(t,s){
     const rank = sorted.indexOf(u)+1;
     const h = rank===1?60:(rank===2?44:34);
     const sz = rank===1?62:52;
-    const avatarStyle = 'width:'+sz+'px;height:'+sz+'px;margin:0 auto;border-radius:'+(sz/2.6)+'px;display:grid;place-items:center;font-family:var(--fh);font-size:'+(sz/2.7)+'px;'+
-      (rank===1? 'background:linear-gradient(150deg,#E7C765,#C9A227);color:#3A2D06;box-shadow:0 14px 28px -10px rgba(201,162,39,.75),inset 0 2px 0 rgba(255,255,255,.45)'
-               : (u.me? 'background:rgba(231,199,101,.2);border:1.5px solid #E7C765;color:#E7C765;box-shadow:0 0 0 4px rgba(231,199,101,.14)'
-                      : 'background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);color:#fff'));
+    const ringBg = rank===1? 'linear-gradient(150deg,#E7C765,#C9A227)' : (u.me? '#E7C765' : 'rgba(255,255,255,.28)');
+    const ringShadow = rank===1? 'box-shadow:0 14px 28px -10px rgba(201,162,39,.75)' : (u.me? 'box-shadow:0 0 0 4px rgba(231,199,101,.14)' : '');
+    const fallbackBg = rank===1? 'linear-gradient(150deg,#E7C765,#C9A227)' : (u.me? 'rgba(231,199,101,.2)' : 'rgba(255,255,255,.14)');
+    const fallbackColor = rank===1? '#3A2D06' : (u.me? '#E7C765' : '#fff');
     const plinthStyle = 'margin-top:10px;height:'+h+'px;border-radius:14px 14px 0 0;display:flex;align-items:center;justify-content:center;'+
       (rank===1? 'background:linear-gradient(180deg,rgba(231,199,101,.34),rgba(231,199,101,.07))' : 'background:linear-gradient(180deg,rgba(255,255,255,.15),rgba(255,255,255,.03))');
     const name = u.me? u.name+' ('+(s.lang==='kz'?'сен':'ты')+')' : u.name;
     return `<div style="text-align:center">
-    ${u.avatarUrl?`<div style="width:${sz}px;height:${sz}px;margin:0 auto;border-radius:${Math.round(sz/2.6)}px;overflow:hidden;background-image:url('${esc(u.avatarUrl)}');background-size:cover;background-position:center"></div>`:`<div style="${avatarStyle}">${initials(u.name)}</div>`}
+    <div style="margin:0 auto;width:${sz}px">${avatarRing(u.name, u.avatarUrl, sz, ringBg, fallbackBg, fallbackColor, Math.round(sz/2.7), Math.max(2,Math.round(sz*0.045)), ringShadow)}</div>
     <div style="font-size:12px;font-weight:800;color:#fff;margin-top:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(name)}</div>
     <div style="font-size:11px;font-weight:700;color:#E7C765;margin-top:2px">${u.score.toLocaleString('ru-RU')}</div>
     <div style="${plinthStyle}"><span style="font-family:var(--fh);font-size:26px;color:rgba(255,255,255,.9)">${rank}</span></div></div>`;
@@ -2155,13 +2164,14 @@ function screenBoard(t,s){
     const rank = u.rank || (i+4), me=!!u.me;
     const rowStyle = 'display:flex;align-items:center;gap:11px;padding:11px 14px;border-radius:20px;'+
       (me? 'background:linear-gradient(150deg,#1B6B50,#0E3B2E);box-shadow:0 14px 26px -16px rgba(14,59,46,.7)' : 'background:#fff;border:1px solid rgba(8,37,28,.10)');
-    const avatarStyle = 'width:36px;height:36px;border-radius:13px;display:grid;place-items:center;font-family:var(--fh);font-size:14px;flex:none;'+
-      (me? 'background:rgba(231,199,101,.2);border:1px solid rgba(231,199,101,.35);color:#E7C765' : 'background:#EFF6F2;border:1px solid #DCEAE3;color:#14523E');
+    const ringBg = me? 'rgba(231,199,101,.35)' : '#DCEAE3';
+    const fallbackBg = me? 'rgba(231,199,101,.2)' : '#EFF6F2';
+    const fallbackColor = me? '#E7C765' : '#14523E';
     const rankColor = me?'rgba(255,255,255,.7)':'#9AC7B3', nameColor = me?'#fff':'#12201B', metaColor = me?'rgba(255,255,255,.55)':'#657771', scoreColor = me?'#E7C765':'#14523E';
     const name = u.name+(me?' ('+(s.lang==='kz'?'сен':'ты')+')':'');
     return `<div style="${rowStyle}">
     <span style="width:22px;font-family:var(--fh);font-size:17px;color:${rankColor};text-align:center">${rank}</span>
-    ${u.avatarUrl?`<div style="width:36px;height:36px;border-radius:13px;overflow:hidden;flex:none;background-image:url('${esc(u.avatarUrl)}');background-size:cover;background-position:center"></div>`:`<div style="${avatarStyle}">${initials(u.name)}</div>`}
+    ${avatarRing(u.name, u.avatarUrl, 36, ringBg, fallbackBg, fallbackColor, 14, 2)}
     <div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:700;color:${nameColor};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(name)}</div>
     <div style="font-size:10.5px;font-weight:600;color:${metaColor};margin-top:1px">${esc(u.city)}</div></div>
     <span style="font-family:var(--fh);font-size:19px;color:${scoreColor}">${u.score.toLocaleString('ru-RU')}</span></div>`;
@@ -2205,7 +2215,7 @@ function screenProfile(t,s){
   <div style="margin:6px 18px 0;position:relative;border-radius:28px;overflow:hidden;background:linear-gradient(160deg,#1B6B50,#0E3B2E 58%,#08251C);box-shadow:0 22px 44px -22px rgba(8,37,28,.6)">
   <div style="position:absolute;inset:0;opacity:.42;background:repeating-conic-gradient(from 22.5deg at 78% 6%,rgba(255,255,255,.06) 0deg 11deg,transparent 11deg 22.5deg)"></div>
   <div style="position:relative;padding:24px 22px 22px;display:flex;align-items:center;gap:15px">
-  <div onclick="goSettings()" data-hover style="cursor:pointer;flex:none">${avatarBox(s.name, s.avatarUrl, 68, 24, 'linear-gradient(150deg,#E7C765,#C9A227)', '#3A2D06', 26, 'box-shadow:0 14px 28px -10px rgba(201,162,39,.7),inset 0 2px 0 rgba(255,255,255,.45)')}</div>
+  <div onclick="goSettings()" data-hover style="cursor:pointer">${avatarRing(s.name, s.avatarUrl, 68, 'linear-gradient(150deg,#E7C765,#C9A227)', 'linear-gradient(150deg,#E7C765,#C9A227)', '#3A2D06', 26, 4, 'box-shadow:0 14px 28px -10px rgba(201,162,39,.7),inset 0 2px 0 rgba(255,255,255,.45)')}</div>
   <div style="flex:1;min-width:0">
   <h3 onclick="goSettings()" style="font-size:27px;color:#fff;text-transform:uppercase;cursor:pointer">${esc(s.name)}</h3>
   <div style="display:flex;align-items:center;gap:7px;margin-top:6px">
@@ -2347,7 +2357,7 @@ function overlayDuelInvite(t,s){
   <div style="position:absolute;inset:0;background:rgba(8,37,28,.55);backdrop-filter:blur(5px)"></div>
   <div style="position:absolute;left:20px;right:20px;bottom:24px;border-radius:26px;background:var(--cream);box-shadow:0 -10px 40px -10px rgba(8,37,28,.5);padding:20px;animation:up .3s cubic-bezier(.2,.85,.2,1) both">
   <div style="display:flex;align-items:center;gap:12px">
-  <div style="width:46px;height:46px;border-radius:16px;background:linear-gradient(150deg,#1B6B50,#0E3B2E);display:grid;place-items:center;color:#E7C765;font-family:var(--fh);font-size:17px;flex:none">${esc(initials(inv.hostName))}</div>
+  ${avatarRing(inv.hostName, null, 46, 'linear-gradient(150deg,#1B6B50,#0E3B2E)', 'linear-gradient(150deg,#1B6B50,#0E3B2E)', '#E7C765', 17, 3)}
   <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:800">${esc(inv.hostName)}</div>
   <div style="font-size:12px;color:var(--mut);margin-top:2px">${s.lang==='kz'?'ойынға шақырды':'приглашает в игру'}</div></div>
   </div>
@@ -2545,7 +2555,7 @@ function screenSettings(t,s){
   ${AVATARS.length?`<div style="padding:0 22px 18px">
   <label class="glabel">${s.lang==='kz'?'Аватар':'Аватар'}</label>
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-  ${avatarBox(s.name, s.avatarUrl, 56, 20, 'linear-gradient(150deg,#E7C765,#C9A227)', '#3A2D06', 20, 'border:1px solid var(--line)')}
+  ${avatarRing(s.name, s.avatarUrl, 56, 'linear-gradient(150deg,#E7C765,#C9A227)', 'linear-gradient(150deg,#E7C765,#C9A227)', '#3A2D06', 20)}
   <span style="font-size:12px;color:var(--mut);line-height:1.5">${s.lang==='kz'?'Төмендегі үлгілерден таңда':'Выбери из образцов ниже'}</span>
   </div>
   <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:2px" class="sc">
@@ -2572,7 +2582,7 @@ function screenFriendsList(t,s){
   const friends = s.friends||[];
   const rows = friends.map(f=>`
     <div style="display:flex;align-items:center;gap:12px;padding:13px;border-radius:20px;background:var(--paper);border:1px solid var(--line);margin-bottom:9px">
-    ${avatarBox(f.name, f.avatarUrl, 42, 15, 'var(--g1)', 'var(--g7)', 15, 'border:1px solid var(--g2)')}
+    ${avatarRing(f.name, f.avatarUrl, 42, 'linear-gradient(150deg,#5AA184,#0E3B2E)', 'var(--g1)', 'var(--g7)', 15)}
     <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</div>
     <div style="font-size:11px;color:var(--mut);margin-top:1px">${esc(f.city)}</div></div>
     <button onclick="selectDuelFriend('${f.id}')" data-hover style="height:36px;padding:0 13px;border-radius:12px;background:linear-gradient(150deg,#1B6B50,#0E3B2E);color:#fff;font-family:var(--fh);font-size:12.5px;text-transform:uppercase;letter-spacing:.03em;cursor:pointer;flex:none" ${s.duelLoading?'disabled':''}>${s.lang==='kz'?'Шақыру':'Позвать'}</button>
@@ -2601,7 +2611,7 @@ function screenDuelMenu(t,s){
   const friends = s.friends||[];
   const rows = friends.map(f=>`
     <div style="display:flex;align-items:center;gap:12px;padding:13px;border-radius:20px;background:var(--paper);border:1px solid var(--line);margin-bottom:9px">
-    ${avatarBox(f.name, f.avatarUrl, 42, 15, 'var(--g1)', 'var(--g7)', 15, 'border:1px solid var(--g2)')}
+    ${avatarRing(f.name, f.avatarUrl, 42, 'linear-gradient(150deg,#5AA184,#0E3B2E)', 'var(--g1)', 'var(--g7)', 15)}
     <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</div>
     <div style="font-size:11px;color:var(--mut);margin-top:1px">${esc(f.city)}</div></div>
     <button onclick="selectDuelFriend('${f.id}')" data-hover style="height:38px;padding:0 14px;border-radius:12px;background:linear-gradient(150deg,#1B6B50,#0E3B2E);color:#fff;font-family:var(--fh);font-size:13px;text-transform:uppercase;letter-spacing:.03em;cursor:pointer" ${s.duelLoading?'disabled':''}>${s.lang==='kz'?'Шақыру':'Позвать'}</button>
@@ -2693,8 +2703,8 @@ function screenDuelLobby(t,s){
   const hasGuest = !!(room.guest_id || s.duelOpponentId);
   const myName = s.name;
   const oppName = s.duelOpponentName;
-  const playerRow = (label,name,waiting)=>`<div style="display:flex;align-items:center;gap:12px;padding:13px;border-radius:18px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);margin-bottom:9px">
-  <div style="width:38px;height:38px;border-radius:14px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);display:grid;place-items:center;font-family:var(--fh);font-size:13px;color:#E7C765;flex:none">${waiting?'…':esc(initials(name))}</div>
+  const playerRow = (label,name,waiting,avatarUrl)=>`<div style="display:flex;align-items:center;gap:12px;padding:13px;border-radius:18px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);margin-bottom:9px">
+  ${waiting?`<div style="width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);display:grid;place-items:center;font-family:var(--fh);font-size:13px;color:#E7C765;flex:none">…</div>`:avatarRing(name, avatarUrl, 38, 'rgba(255,255,255,.2)', 'rgba(255,255,255,.1)', '#E7C765', 13, 2)}
   <div style="flex:1;min-width:0;text-align:left">
   <div style="font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.45);font-weight:800">${esc(label)}</div>
   <div style="font-family:var(--fh);font-size:16px;color:#fff;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${waiting?(s.lang==='kz'?'Күтуде...':'Ожидание...'):esc(name)}</div>
@@ -2715,8 +2725,8 @@ function screenDuelLobby(t,s){
   return `<div class="sc" style="position:absolute;inset:0;overflow-y:auto;display:flex;flex-direction:column;align-items:center;text-align:center;padding:40px 28px 40px;background:linear-gradient(168deg,#14523E 0%,#0E3B2E 46%,#08251C 100%);animation:fade .3s ease">
   ${codeSection}
   <div style="width:100%;max-width:300px">
-  ${playerRow(s.lang==='kz'?'Сіз':'Вы', myName, false)}
-  ${playerRow(s.lang==='kz'?'Дос':'Друг', oppName, !hasGuest)}
+  ${playerRow(s.lang==='kz'?'Сіз':'Вы', myName, false, s.avatarUrl)}
+  ${playerRow(s.lang==='kz'?'Дос':'Друг', oppName, !hasGuest, null)}
   </div>
   ${isHost
     ? `<div onclick="${hasGuest?'hostStartRoomCountdown()':''}" data-hover style="margin-top:14px;width:100%;max-width:300px;height:54px;border-radius:18px;display:flex;align-items:center;justify-content:center;gap:9px;${hasGuest?'background:linear-gradient(150deg,#E7C765,#C9A227);cursor:pointer;box-shadow:0 14px 26px -10px rgba(201,162,39,.7)':'background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);cursor:not-allowed'}">
@@ -2935,6 +2945,5 @@ if(state.screen==='splash'){
 
 render();
 </script>
-
 </body>
 </html>
