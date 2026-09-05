@@ -1667,6 +1667,22 @@ function levelFromXP(xp){
   return { level, currentLevelXP, xpToNext: XP_PER_LEVEL - currentLevelXP, totalForLevel: XP_PER_LEVEL };
 }
 
+// Six named star-rank tiers, one per XP level (level 1 = new player,
+// level 6+ caps out at the top tier).
+const PLAYER_TIERS = [
+  {kz:'Жаңа ойыншы', ru:'Новый игрок'},
+  {kz:'Ізденуші', ru:'Искатель'},
+  {kz:'Зерттеуші', ru:'Исследователь'},
+  {kz:'Білгір', ru:'Знаток'},
+  {kz:'Таным шебері', ru:'Мастер познания'},
+  {kz:'Данагөй', ru:'Мудрец'}
+];
+function playerTierLabel(xp, lang){
+  const tier = Math.min(Math.max(levelFromXP(xp).level - 1, 0), 5);
+  const stars = tier===0 ? '☆' : '★'.repeat(tier);
+  return stars+' '+PLAYER_TIERS[tier][lang];
+}
+
 function completedCategoryCount(s){
   const byCat = {};
   ITEMS.forEach(m=>{ if(!m.categoryId) return; (byCat[m.categoryId]=byCat[m.categoryId]||[]).push(m.id); });
@@ -1990,7 +2006,7 @@ function screenHome(t,s){
   <div style="display:flex;align-items:center;gap:11px;padding:0 22px 18px">
   ${avatarRing(s.name, s.avatarUrl, 44, 'linear-gradient(150deg,#1B6B50,#0E3B2E)', 'linear-gradient(150deg,#1B6B50,#0E3B2E)', '#E7C765', 17, 3, 'box-shadow:0 8px 18px -6px rgba(14,59,46,.55)')}
   <div style="flex:1;min-width:0">
-  <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--mut)">${esc(t.greeting)}</div>
+  <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--mut)">${esc(playerTierLabel(s.xp, s.lang))}</div>
   <div style="font-family:var(--fh);font-size:20px;line-height:1.1;margin-top:1px">${esc(s.name)}</div></div>
   <div onclick="openCoinsModal()" data-hover style="display:flex;align-items:center;gap:5px;height:32px;padding:0 11px;border-radius:11px;background:var(--gold1);border:1px solid rgba(201,162,39,.34);color:#8A6E10;cursor:pointer">
   ${svg.coin}<span style="font-size:13px;font-weight:800;letter-spacing:.01em">${s.coins.toLocaleString('ru-RU')}</span></div>
