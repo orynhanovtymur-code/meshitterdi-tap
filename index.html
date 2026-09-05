@@ -1845,14 +1845,18 @@ function screenHome(t,s){
     botColor: botColors[i % botColors.length]
   }));
   const displayLive = realLive.concat(botCards);
-  const liveCards = displayLive.map(p=>`
-  <div onclick="${p.isBot?'goLevels()':`inviteLivePlayer('${p.id}','${esc(p.name).replace(/'/g,"\'")}')`}" data-hover style="flex:none;width:78px;text-align:center;cursor:pointer">
+  const liveCards = displayLive.map(p=>{
+    const goAction = p.isBot?'goLevels()':`inviteLivePlayer('${p.id}','${esc(p.name).replace(/'/g,"\'")}')`;
+    return `
+  <div style="flex:none;width:78px;text-align:center">
   <div style="margin:0 auto;width:68px">${avatarRing(p.name, p.avatarUrl, 68, (p.isBot?'var(--g2)':'linear-gradient(150deg,#5AA184,#0E3B2E)'), (p.isBot?p.botColor:'var(--paper)'), (p.isBot?'#fff':'var(--g7)'), 19)}</div>
   <div style="margin-top:8px;font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</div>
   ${p.isBot
     ? `<div style="font-size:9.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--mut);margin-top:1px">${s.lang==='kz'?'Бот':'Бот'}</div>`
     : `<div style="font-size:10.5px;color:var(--mut);margin-top:1px">${p.coins.toLocaleString('ru-RU')} ${s.lang==='kz'?'ұпай':'очков'}</div>`}
-  </div>`).join('');
+  <button onclick="${goAction}" data-hover style="margin-top:7px;width:100%;height:24px;border-radius:9px;background:var(--g7);color:#fff;font-family:var(--fb);font-weight:700;font-size:10.5px;cursor:pointer">${s.lang==='kz'?'Ойнау':'Играть'}</button>
+  </div>`;
+  }).join('');
   const liveHtml = `<div style="margin:14px 0 0">
   <div style="display:flex;align-items:center;justify-content:space-between;padding:0 18px">
   <span style="font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--g6);font-weight:800">${s.lang==='kz'?'Live ойыншылар':'Live игроки'}</span>
