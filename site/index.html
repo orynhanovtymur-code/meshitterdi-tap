@@ -189,6 +189,7 @@ let state = { screen:'splash', lang:'kz', coins:0, found:[], name:'Ойыншы'
   duelCountdownN:3, duelDeckIds:[], duelFlipped:[], duelMatches:[], duelLocked:false,
   duelOpponentId:null, duelOpponentName:'', duelResult:null, duelResultFinalized:false, duelDeclinedMsg:'',
   duelPendingFriendId:null, duelPendingFriendName:'',
+  duelIsBot:false, duelPendingIsBot:false, duelBotSeen:{},
   duelStartedAt:null, duelJoinError:'', duelJoinLoading:false,
   friends:[], friendsLoading:false, globalChannel:null, livePlayers:[],
   showCoinsModal:false, showTodayFactModal:false, viewCategoryId:null, detailItemId:null,
@@ -603,6 +604,17 @@ function inviteLivePlayer(id, name){
   if(!requireAuth()) return;
   state.duelPendingFriendId = id;
   state.duelPendingFriendName = name;
+  state.duelPendingIsBot = false;
+  setState({screen:'duelLevels'});
+}
+// Bots are a real (local, non-networked) opponent -- they actually flip
+// and match cards on the same shared deck via botTick()/botClaim() below,
+// they just don't touch Supabase, since there's no second real player.
+function startBotDuelFlow(name){
+  if(!requireAuth()) return;
+  state.duelPendingFriendId = null;
+  state.duelPendingFriendName = name;
+  state.duelPendingIsBot = true;
   setState({screen:'duelLevels'});
 }
 
@@ -783,6 +795,7 @@ function requireAuth(){
 function goDuelMenu(){
   if(!requireAuth()) return;
   state.duelError=''; state.duelRoom=null; state.duelRole=null; state.duelDeclinedMsg='';
+  state.duelIsBot=false; state.duelPendingIsBot=false;
   teardownDuelChannel();
   setState({screen:'duelMenu'});
   fetchFriends();
@@ -818,6 +831,7 @@ async function createDuelRoom(){
     if(error) throw error;
     state.duelRoom = room;
     state.duelRole = 'host';
+    state.duelIsBot = false;
     state.duelOpponentId = null;
     state.duelOpponentName = '';
     state.duelResultFinalized = false;
@@ -888,6 +902,7 @@ async function submitJoinRoom(e){
     }
     state.duelRoom = updated;
     state.duelRole = 'guest';
+    state.duelIsBot = false;
     state.duelOpponentId = updated.host_id;
     state.duelResultFinalized = false;
     subscribeDuelRoom(updated.id);
@@ -906,12 +921,76 @@ function selectDuelFriend(id){
   if(!f) return;
   state.duelPendingFriendId = f.id;
   state.duelPendingFriendName = f.name;
+  state.duelPendingIsBot = false;
   setState({screen:'duelLevels'});
 }
 
 function confirmDuelLevel(levelId){
+  if(state.duelPendingIsBot){ startBotDuel(levelId); return; }
   if(!state.duelPendingFriendId) { setState({screen:'duelMenu'}); return; }
   inviteFriendToDuel(state.duelPendingFriendId, state.duelPendingFriendName, levelId);
+}
+
+// Starts an actual local vs-bot duel: same shared-deck matching game as a
+// real duel, just with no Supabase room -- the bot plays via botTick()/
+// botClaim() below instead of a second real client claiming pairs.
+function startBotDuel(levelId){
+  const L = lvl(levelId);
+  const pairs = Math.max(1, Math.min(L.pairs, ITEMS.length));
+  const pool = ITEMS.slice().sort(()=>Math.random()-0.5).slice(0,pairs);
+  const deck = pool.concat(pool).sort(()=>Math.random()-0.5).map(m=>m.id);
+  state.duelIsBot = true;
+  state.duelRoom = { pairs };
+  state.duelRole = 'host';
+  state.duelOpponentId = 'bot';
+  state.duelOpponentName = state.duelPendingFriendName || (state.lang==='kz'?'Бот':'Бот');
+  state.duelDeckIds = deck;
+  state.duelFlipped = [];
+  state.duelMatches = [];
+  state.duelLocked = false;
+  state.duelResult = null;
+  state.duelResultFinalized = false;
+  state.duelBotSeen = {};
+  state.duelError = '';
+  enterDuelCountdown();
+}
+
+function startBotDuelGame(){
+  state.duelStartedAt = Date.now();
+  setState({screen:'duelGame'});
+  botTick();
+}
+
+// The bot "sees" a card whenever it flips one and remembers it (like a
+// human would); once it has seen both cards of a pair it claims them
+// immediately, otherwise it picks a fresh (or half-remembered) card.
+function botTick(){
+  if(state.screen!=='duelGame' || !state.duelIsBot) return;
+  const remaining = state.duelDeckIds.map((id,i)=>i).filter(i=>!state.duelMatches.some(m=>m.mosque_id===state.duelDeckIds[i]));
+  if(remaining.length===0) return;
+  const seen = state.duelBotSeen;
+  Object.keys(seen).forEach(k=>{ if(remaining.indexOf(+k)===-1) delete seen[k]; });
+  const delay = 1100 + Math.random()*1500;
+  setTimeout(()=>{
+    if(state.screen!=='duelGame' || !state.duelIsBot) return;
+    const pool = remaining.filter(i=>seen[i]==null);
+    const pick = pool.length ? pool[Math.floor(Math.random()*pool.length)] : remaining[Math.floor(Math.random()*remaining.length)];
+    const id = state.duelDeckIds[pick];
+    const knownMatch = Object.keys(seen).find(k=>seen[k]===id && +k!==pick);
+    if(knownMatch!=null){
+      delete seen[pick]; delete seen[knownMatch];
+      botClaim(id);
+    } else {
+      seen[pick] = id;
+    }
+    botTick();
+  }, delay);
+}
+function botClaim(mosqueId){
+  if(state.duelMatches.some(m=>m.mosque_id===mosqueId)) return;
+  state.duelMatches.push({ mosque_id: mosqueId, claimed_by:'bot', claimed_at: new Date().toISOString() });
+  if(state.screen==='duelGame') render();
+  maybeFinishDuel();
 }
 
 async function inviteFriendToDuel(friendId, friendName, levelId){
@@ -927,6 +1006,7 @@ async function inviteFriendToDuel(friendId, friendName, levelId){
     if(error) throw error;
     state.duelRoom = room;
     state.duelRole = 'host';
+    state.duelIsBot = false;
     state.duelOpponentId = friendId;
     state.duelOpponentName = friendName;
     subscribeDuelRoom(room.id);
@@ -955,6 +1035,7 @@ async function acceptDuelInvite(){
     }
     state.duelRoom = updated;
     state.duelRole = 'guest';
+    state.duelIsBot = false;
     state.duelOpponentId = inv.hostId;
     state.duelOpponentName = inv.hostName;
     subscribeDuelRoom(updated.id);
@@ -1021,6 +1102,7 @@ function enterDuelCountdown(){
     if(state.screen!=='duelCountdown') return;
     state.duelCountdownN -= 1;
     if(state.duelCountdownN <= 0){
+      if(state.duelIsBot){ startBotDuelGame(); return; }
       if(state.duelRole==='host') hostStartDuelGame();
       return;
     }
@@ -1086,6 +1168,14 @@ function duelFlip(i){
 }
 
 async function claimDuelPair(mosqueId, fl){
+  if(state.duelIsBot){
+    state.duelMatches.push({mosque_id:mosqueId, claimed_by: state.playerId, claimed_at: new Date().toISOString()});
+    state.duelFlipped = [];
+    state.duelLocked = false;
+    render();
+    maybeFinishDuel();
+    return;
+  }
   try{
     const { error } = await sb.from('duel_matches').insert({
       room_id: state.duelRoom.id, mosque_id: mosqueId, claimed_by: state.playerId
@@ -1846,7 +1936,7 @@ function screenHome(t,s){
   }));
   const displayLive = realLive.concat(botCards);
   const liveCards = displayLive.map(p=>{
-    const goAction = p.isBot?'goLevels()':`inviteLivePlayer('${p.id}','${esc(p.name).replace(/'/g,"\'")}')`;
+    const goAction = p.isBot?`startBotDuelFlow('${esc(p.name).replace(/'/g,"\'")}')`:`inviteLivePlayer('${p.id}','${esc(p.name).replace(/'/g,"\'")}')`;
     return `
   <div style="flex:none;width:78px;text-align:center">
   <div style="margin:0 auto;width:68px">${avatarRing(p.name, p.avatarUrl, 68, (p.isBot?'var(--g2)':'linear-gradient(150deg,#5AA184,#0E3B2E)'), (p.isBot?p.botColor:'var(--paper)'), (p.isBot?'#fff':'var(--g7)'), 19)}</div>
