@@ -178,7 +178,7 @@ const CHIP_OFF = 'height:24px;padding:0 11px;border-radius:8px;background:transp
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 let state = { screen:'splash', lang:'kz', coins:0, found:[], name:'Ойыншы', city:'', email:'',
-  playerId:null, playerNumber:null, bestScore:0, leaderboard:null, boardFilter:'all', myRank:null, unlockedStage:1, currentStage:null,
+  playerId:null, playerNumber:null, avatarUrl:null, bestScore:0, leaderboard:null, boardFilter:'all', myRank:null, unlockedStage:1, currentStage:null,
   gamesPlayed:0, bestTimeSeconds:null,
   xp:0, hasFlawlessWin:false, hasFastWin:false, currentStreak:0, lastPlayedDate:null,
   weeklyScore:0, weeklyScoreWeek:null, claimedAchievements:[], screenBeforeAchievements:'profile', screenBeforeCollection:'profile',
@@ -243,7 +243,8 @@ function persistCloud(){
       last_played_date: state.lastPlayedDate,
       weekly_score: state.weeklyScore||0,
       weekly_score_week: state.weeklyScoreWeek,
-      claimed_achievements: state.claimedAchievements||[]
+      claimed_achievements: state.claimedAchievements||[],
+      avatar_url: state.avatarUrl||null
     }).eq('id', state.playerId).then(({error})=>{
       if(error){
         console.warn('Supabase save failed:', error.message);
@@ -277,6 +278,7 @@ async function hydratePlayer(uid, defaults){
   }
   if(row){
     state.playerNumber = row.player_number!=null ? row.player_number : null;
+    state.avatarUrl = row.avatar_url || null;
     state.name = row.name || state.name;
     state.city = row.city || state.city || '';
     state.lang = row.lang || state.lang;
@@ -402,7 +404,7 @@ async function logout(){
   state.globalChannel = null;
   teardownDuelChannel();
   teardownLiveChannel();
-  state.playerId = null; state.playerNumber = null; state.coins = 0; state.found = []; state.name = 'Ойыншы'; state.city = ''; state.email='';
+  state.playerId = null; state.playerNumber = null; state.avatarUrl = null; state.coins = 0; state.found = []; state.name = 'Ойыншы'; state.city = ''; state.email='';
   state.bestScore = 0; state.leaderboard = null; state.authMode='login'; state.authError=''; state.authInfo='';
   state.friends = []; state.incomingDuelInvite=null; state.myFriendCode=null; state.unlockedStage=1;
   try{
@@ -427,36 +429,36 @@ async function fetchLeaderboard(filter){
     if(filter==='week'){
       const week = isoWeekLabel(new Date());
       const { data, error } = await sb.from('players')
-        .select('id,name,city,weekly_score')
+        .select('id,name,city,weekly_score,avatar_url')
         .eq('weekly_score_week', week)
         .gt('weekly_score', 0)
         .order('weekly_score',{ascending:false})
         .limit(10);
       if(error) throw error;
-      list = (data||[]).map(r=>({id:r.id,name:displayName(r),city:r.city||'',score:r.weekly_score||0,me:r.id===state.playerId}));
+      list = (data||[]).map(r=>({id:r.id,name:displayName(r),city:r.city||'',score:r.weekly_score||0,avatarUrl:r.avatar_url||null,me:r.id===state.playerId}));
     } else if(filter==='friends'){
       if(!state.friends || !state.friends.length) await fetchFriends();
       const ids = (state.friends||[]).map(f=>f.id);
       if(state.playerId) ids.push(state.playerId);
       if(ids.length){
-        const { data, error } = await sb.from('players').select('id,name,city,best_score').in('id', ids);
+        const { data, error } = await sb.from('players').select('id,name,city,best_score,avatar_url').in('id', ids);
         if(error) throw error;
-        list = (data||[]).map(r=>({id:r.id,name:displayName(r),city:r.city||'',score:r.best_score||0,me:r.id===state.playerId}))
+        list = (data||[]).map(r=>({id:r.id,name:displayName(r),city:r.city||'',score:r.best_score||0,avatarUrl:r.avatar_url||null,me:r.id===state.playerId}))
           .filter(r=>r.score>0 || r.me)
           .sort((a,b)=>b.score-a.score);
       }
     } else {
       const { data, error } = await sb.from('players')
-        .select('id,name,city,best_score')
+        .select('id,name,city,best_score,avatar_url')
         .gt('best_score', 0)
         .order('best_score',{ascending:false})
         .limit(10);
       if(error) throw error;
-      list = (data||[]).map(r=>({id:r.id,name:displayName(r),city:r.city||'',score:r.best_score||0,me:r.id===state.playerId}));
+      list = (data||[]).map(r=>({id:r.id,name:displayName(r),city:r.city||'',score:r.best_score||0,avatarUrl:r.avatar_url||null,me:r.id===state.playerId}));
     }
     if(filter!=='friends' && state.playerId && !list.some(r=>r.me)){
       const col = filter==='week' ? 'weekly_score' : 'best_score';
-      const { data: mine } = await sb.from('players').select('id,name,city,'+col).eq('id',state.playerId).maybeSingle();
+      const { data: mine } = await sb.from('players').select('id,name,city,avatar_url,'+col).eq('id',state.playerId).maybeSingle();
       if(mine){
         let rank = null;
         if(filter==='week'){
@@ -468,7 +470,7 @@ async function fetchLeaderboard(filter){
           await fetchMyRank();
           rank = state.myRank;
         }
-        list.push({id:mine.id,name:displayName(mine),city:mine.city||'',score:mine[col]||0,me:true,rank});
+        list.push({id:mine.id,name:displayName(mine),city:mine.city||'',score:mine[col]||0,avatarUrl:mine.avatar_url||null,me:true,rank});
       }
     }
     state.leaderboard = list;
@@ -568,7 +570,7 @@ function syncLivePlayers(){
     const presences = presenceState[key];
     if(presences && presences.length){
       const p = presences[0];
-      list.push({ id:key, name:p.name||'Ойыншы', coins:p.coins||0 });
+      list.push({ id:key, name:p.name||'Ойыншы', coins:p.coins||0, avatarUrl:p.avatarUrl||null });
     }
   });
   state.livePlayers = list.slice(0,10);
@@ -582,11 +584,11 @@ function subscribeLivePlayers(){
     .on('presence', {event:'join'}, syncLivePlayers)
     .on('presence', {event:'leave'}, syncLivePlayers)
     .subscribe(status=>{
-      if(status==='SUBSCRIBED') liveChannel.track({ name: state.name, coins: state.coins });
+      if(status==='SUBSCRIBED') liveChannel.track({ name: state.name, coins: state.coins, avatarUrl: state.avatarUrl });
     });
 }
 function retrackPresence(){
-  if(liveChannel) liveChannel.track({ name: state.name, coins: state.coins });
+  if(liveChannel) liveChannel.track({ name: state.name, coins: state.coins, avatarUrl: state.avatarUrl });
 }
 function teardownLiveChannel(){
   if(sb && liveChannel){ sb.removeChannel(liveChannel); }
@@ -716,8 +718,8 @@ async function fetchFriends(){
     }).filter(Boolean);
     let friends = [];
     if(otherIds.length){
-      const { data: players } = await sb.from('players').select('id,name,city').in('id', otherIds);
-      friends = (players||[]).map(p=>({id:p.id, name:p.name||'Ойыншы', city:p.city||'', friendshipId:friendshipIdByOther[p.id]}));
+      const { data: players } = await sb.from('players').select('id,name,city,avatar_url').in('id', otherIds);
+      friends = (players||[]).map(p=>({id:p.id, name:p.name||'Ойыншы', city:p.city||'', avatarUrl:p.avatar_url||null, friendshipId:friendshipIdByOther[p.id]}));
     }
     state.friends = friends;
   }catch(e){
@@ -1726,11 +1728,40 @@ async function loadDefaultItems(){
 }
 const mosquesReady = loadDefaultItems();
 
+let AVATARS = [];
+async function loadAvatars(){
+  if(!sb) return;
+  try{
+    const { data, error } = await sb.from('avatars').select('*').order('sort_order',{ascending:true});
+    if(error) throw error;
+    AVATARS = (data||[]).map(a=>({id:a.id, url:a.image_url}));
+  }catch(e){
+    console.warn('Avatars fetch failed:', e.message||e);
+  }
+}
+const avatarsReady = loadAvatars();
+
 function goLevels(){ setState({screen:'levels'}); }
 function chooseLevelStep1(id){ if(!requireAuth()) return; setState({pendingLevelId:id, screen:'stages'}); }
 
 function mm(n){ return Math.floor(n/60)+':'+String(n%60).padStart(2,'0'); }
 function initials(n){ const w=n.trim().split(/\s+/); return (w.length>1? w[0][0]+w[1][0] : n.slice(0,2)).toUpperCase(); }
+
+// Shows the player's chosen avatar image when set, otherwise falls
+// back to the existing initials-circle exactly as before -- callers
+// keep their own colors/border for the fallback case.
+function avatarBox(name, url, size, radius, fallbackBg, fallbackColor, fontSize, extraStyle){
+  extraStyle = extraStyle || '';
+  if(url){
+    return `<div style="width:${size}px;height:${size}px;border-radius:${radius}px;overflow:hidden;flex:none;background-image:url('${esc(url)}');background-size:cover;background-position:center;${extraStyle}"></div>`;
+  }
+  return `<div style="width:${size}px;height:${size}px;border-radius:${radius}px;display:grid;place-items:center;font-family:var(--fh);font-size:${fontSize}px;flex:none;background:${fallbackBg};color:${fallbackColor};${extraStyle}">${esc(initials(name))}</div>`;
+}
+function chooseAvatar(url){
+  state.avatarUrl = url;
+  persist({});
+  render();
+}
 
 function screenSplash(t){
   return `
@@ -1798,7 +1829,7 @@ function screenHome(t,s){
   const liveCards = displayLive.map(p=>`
   <div style="flex:none;width:104px;padding:12px 10px;border-radius:18px;background:var(--g1);border:1px solid var(--g2);text-align:center">
   <div style="position:relative;width:40px;height:40px;margin:0 auto">
-  <div style="width:100%;height:100%;border-radius:14px;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;font-family:var(--fh);font-size:14px;color:var(--g7)">${esc(initials(p.name))}</div>
+  ${avatarBox(p.name, p.avatarUrl, 40, 14, 'var(--paper)', 'var(--g7)', 14, 'border:1px solid var(--line)')}
   ${p.isBot?'':'<span style="position:absolute;bottom:-1px;right:-1px;width:10px;height:10px;border-radius:50%;background:#2E8365;border:2px solid var(--g1)"></span>'}
   </div>
   <div style="margin-top:8px;font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</div>
@@ -1829,7 +1860,7 @@ function screenHome(t,s){
   }).join('');
   return `<div class="sc" style="position:absolute;inset:0;overflow-y:auto;padding:24px 0 104px;animation:fade .3s ease">
   <div style="display:flex;align-items:center;gap:11px;padding:0 22px 18px">
-  <div style="width:44px;height:44px;border-radius:15px;background:linear-gradient(150deg,#1B6B50,#0E3B2E);display:grid;place-items:center;color:#E7C765;font-family:var(--fh);font-size:17px;box-shadow:0 8px 18px -6px rgba(14,59,46,.55)">${esc(initials(s.name))}</div>
+  ${avatarBox(s.name, s.avatarUrl, 44, 15, 'linear-gradient(150deg,#1B6B50,#0E3B2E)', '#E7C765', 17, 'box-shadow:0 8px 18px -6px rgba(14,59,46,.55)')}
   <div style="flex:1;min-width:0">
   <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--mut)">${esc(t.greeting)}</div>
   <div style="font-family:var(--fh);font-size:20px;line-height:1.1;margin-top:1px">${esc(s.name)}</div></div>
@@ -2111,7 +2142,7 @@ function screenBoard(t,s){
       (rank===1? 'background:linear-gradient(180deg,rgba(231,199,101,.34),rgba(231,199,101,.07))' : 'background:linear-gradient(180deg,rgba(255,255,255,.15),rgba(255,255,255,.03))');
     const name = u.me? u.name+' ('+(s.lang==='kz'?'сен':'ты')+')' : u.name;
     return `<div style="text-align:center">
-    <div style="${avatarStyle}">${initials(u.name)}</div>
+    ${u.avatarUrl?`<div style="width:${sz}px;height:${sz}px;margin:0 auto;border-radius:${Math.round(sz/2.6)}px;overflow:hidden;background-image:url('${esc(u.avatarUrl)}');background-size:cover;background-position:center"></div>`:`<div style="${avatarStyle}">${initials(u.name)}</div>`}
     <div style="font-size:12px;font-weight:800;color:#fff;margin-top:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(name)}</div>
     <div style="font-size:11px;font-weight:700;color:#E7C765;margin-top:2px">${u.score.toLocaleString('ru-RU')}</div>
     <div style="${plinthStyle}"><span style="font-family:var(--fh);font-size:26px;color:rgba(255,255,255,.9)">${rank}</span></div></div>`;
@@ -2126,7 +2157,7 @@ function screenBoard(t,s){
     const name = u.name+(me?' ('+(s.lang==='kz'?'сен':'ты')+')':'');
     return `<div style="${rowStyle}">
     <span style="width:22px;font-family:var(--fh);font-size:17px;color:${rankColor};text-align:center">${rank}</span>
-    <div style="${avatarStyle}">${initials(u.name)}</div>
+    ${u.avatarUrl?`<div style="width:36px;height:36px;border-radius:13px;overflow:hidden;flex:none;background-image:url('${esc(u.avatarUrl)}');background-size:cover;background-position:center"></div>`:`<div style="${avatarStyle}">${initials(u.name)}</div>`}
     <div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:700;color:${nameColor};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(name)}</div>
     <div style="font-size:10.5px;font-weight:600;color:${metaColor};margin-top:1px">${esc(u.city)}</div></div>
     <span style="font-family:var(--fh);font-size:19px;color:${scoreColor}">${u.score.toLocaleString('ru-RU')}</span></div>`;
@@ -2170,7 +2201,7 @@ function screenProfile(t,s){
   <div style="margin:6px 18px 0;position:relative;border-radius:28px;overflow:hidden;background:linear-gradient(160deg,#1B6B50,#0E3B2E 58%,#08251C);box-shadow:0 22px 44px -22px rgba(8,37,28,.6)">
   <div style="position:absolute;inset:0;opacity:.42;background:repeating-conic-gradient(from 22.5deg at 78% 6%,rgba(255,255,255,.06) 0deg 11deg,transparent 11deg 22.5deg)"></div>
   <div style="position:relative;padding:24px 22px 22px;display:flex;align-items:center;gap:15px">
-  <div onclick="goSettings()" data-hover style="width:68px;height:68px;border-radius:24px;background:linear-gradient(150deg,#E7C765,#C9A227);display:grid;place-items:center;font-family:var(--fh);font-size:26px;color:#3A2D06;box-shadow:0 14px 28px -10px rgba(201,162,39,.7),inset 0 2px 0 rgba(255,255,255,.45);flex:none;cursor:pointer">${esc(initials(s.name))}</div>
+  <div onclick="goSettings()" data-hover style="cursor:pointer;flex:none">${avatarBox(s.name, s.avatarUrl, 68, 24, 'linear-gradient(150deg,#E7C765,#C9A227)', '#3A2D06', 26, 'box-shadow:0 14px 28px -10px rgba(201,162,39,.7),inset 0 2px 0 rgba(255,255,255,.45)')}</div>
   <div style="flex:1;min-width:0">
   <h3 onclick="goSettings()" style="font-size:27px;color:#fff;text-transform:uppercase;cursor:pointer">${esc(s.name)}</h3>
   <div style="display:flex;align-items:center;gap:7px;margin-top:6px">
@@ -2507,6 +2538,16 @@ function screenSettings(t,s){
   <div onclick="closeSettings()" data-hover style="width:38px;height:38px;border-radius:13px;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;cursor:pointer;color:var(--g8)">${svg.back}</div>
   <h3 style="font-size:24px;text-transform:uppercase">${s.lang==='kz'?'Аккаунт баптаулары':'Настройки аккаунта'}</h3>
   </div>
+  ${AVATARS.length?`<div style="padding:0 22px 18px">
+  <label class="glabel">${s.lang==='kz'?'Аватар':'Аватар'}</label>
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+  ${avatarBox(s.name, s.avatarUrl, 56, 20, 'linear-gradient(150deg,#E7C765,#C9A227)', '#3A2D06', 20, 'border:1px solid var(--line)')}
+  <span style="font-size:12px;color:var(--mut);line-height:1.5">${s.lang==='kz'?'Төмендегі үлгілерден таңда':'Выбери из образцов ниже'}</span>
+  </div>
+  <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:2px" class="sc">
+  ${AVATARS.map(a=>`<div onclick="chooseAvatar('${esc(a.url)}')" data-hover style="flex:none;width:52px;height:52px;border-radius:18px;overflow:hidden;cursor:pointer;background-image:url('${esc(a.url)}');background-size:cover;background-position:center;${s.avatarUrl===a.url?'box-shadow:0 0 0 3px #C9A227':'box-shadow:0 0 0 1px var(--line)'}"></div>`).join('')}
+  </div>
+  </div>`:''}
   <form onsubmit="submitSettings(event)" style="padding:18px 22px 0">
   ${s.playerNumber!=null?`<div style="margin-bottom:12px"><label class="glabel">ID</label><input class="ginput" value="${esc('ID '+String(s.playerNumber).padStart(5,'0'))}" disabled style="opacity:.6;font-family:var(--fh);letter-spacing:.08em"></div>`:''}
   <div style="margin-bottom:12px"><label class="glabel">Email</label><input class="ginput" value="${esc(s.email)}" disabled style="opacity:.6"></div>
@@ -2527,7 +2568,7 @@ function screenFriendsList(t,s){
   const friends = s.friends||[];
   const rows = friends.map(f=>`
     <div style="display:flex;align-items:center;gap:12px;padding:13px;border-radius:20px;background:var(--paper);border:1px solid var(--line);margin-bottom:9px">
-    <div style="width:42px;height:42px;border-radius:15px;background:var(--g1);border:1px solid var(--g2);display:grid;place-items:center;font-family:var(--fh);font-size:15px;color:var(--g7);flex:none">${esc(initials(f.name))}</div>
+    ${avatarBox(f.name, f.avatarUrl, 42, 15, 'var(--g1)', 'var(--g7)', 15, 'border:1px solid var(--g2)')}
     <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</div>
     <div style="font-size:11px;color:var(--mut);margin-top:1px">${esc(f.city)}</div></div>
     <button onclick="selectDuelFriend('${f.id}')" data-hover style="height:36px;padding:0 13px;border-radius:12px;background:linear-gradient(150deg,#1B6B50,#0E3B2E);color:#fff;font-family:var(--fh);font-size:12.5px;text-transform:uppercase;letter-spacing:.03em;cursor:pointer;flex:none" ${s.duelLoading?'disabled':''}>${s.lang==='kz'?'Шақыру':'Позвать'}</button>
@@ -2556,7 +2597,7 @@ function screenDuelMenu(t,s){
   const friends = s.friends||[];
   const rows = friends.map(f=>`
     <div style="display:flex;align-items:center;gap:12px;padding:13px;border-radius:20px;background:var(--paper);border:1px solid var(--line);margin-bottom:9px">
-    <div style="width:42px;height:42px;border-radius:15px;background:var(--g1);border:1px solid var(--g2);display:grid;place-items:center;font-family:var(--fh);font-size:15px;color:var(--g7);flex:none">${esc(initials(f.name))}</div>
+    ${avatarBox(f.name, f.avatarUrl, 42, 15, 'var(--g1)', 'var(--g7)', 15, 'border:1px solid var(--g2)')}
     <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</div>
     <div style="font-size:11px;color:var(--mut);margin-top:1px">${esc(f.city)}</div></div>
     <button onclick="selectDuelFriend('${f.id}')" data-hover style="height:38px;padding:0 14px;border-radius:12px;background:linear-gradient(150deg,#1B6B50,#0E3B2E);color:#fff;font-family:var(--fh);font-size:13px;text-transform:uppercase;letter-spacing:.03em;cursor:pointer" ${s.duelLoading?'disabled':''}>${s.lang==='kz'?'Шақыру':'Позвать'}</button>
@@ -2881,7 +2922,7 @@ let tickTimer = setInterval(()=>{
 
 if(state.screen==='splash'){
   setTimeout(async ()=>{
-    await Promise.all([mosquesReady, authReady]);
+    await Promise.all([mosquesReady, authReady, avatarsReady]);
     if(state.screen==='splash'){
       setState({screen:'home'});
     }
