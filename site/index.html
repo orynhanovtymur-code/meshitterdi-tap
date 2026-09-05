@@ -1971,12 +1971,12 @@ function screenHome(t,s){
   const realLive = (s.livePlayers||[]).map(p=>Object.assign({isBot:false},p));
   const botsNeeded = Math.max(0, 6-realLive.length);
   const botNames = [
-    {kz:'Ойыншы 1',ru:'Игрок 1'},
-    {kz:'Ойыншы 2',ru:'Игрок 2'},
-    {kz:'Ойыншы 3',ru:'Игрок 3'},
-    {kz:'Ойыншы 4',ru:'Игрок 4'},
-    {kz:'Ойыншы 5',ru:'Игрок 5'},
-    {kz:'Ойыншы 6',ru:'Игрок 6'}
+    {kz:'Ойыншы',ru:'Игрок'},
+    {kz:'Ойыншы',ru:'Игрок'},
+    {kz:'Ойыншы',ru:'Игрок'},
+    {kz:'Ойыншы',ru:'Игрок'},
+    {kz:'Ойыншы',ru:'Игрок'},
+    {kz:'Ойыншы',ru:'Игрок'}
   ];
   const botColors = ['#5AA184','#C9A227','#8A6E10','#1B6B50','#A0793D','#6B8E5A'];
   const botCards = botNames.slice(0,botsNeeded).map((n,i)=>({
