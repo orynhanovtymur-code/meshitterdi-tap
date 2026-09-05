@@ -28,17 +28,16 @@ button{font-family:var(--fh);cursor:pointer;border:none}
 .btn-danger{background:var(--danger-bg);color:var(--danger);border:1px solid rgba(178,59,59,.25)}
 .btn-sm{height:34px;padding:0 12px;font-size:12px;border-radius:10px}
 .card{background:var(--paper);border:1px solid var(--line);border-radius:20px}
-.wrap{max-width:920px;margin:0 auto;padding:28px 20px 80px}
 .field{margin-bottom:14px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 @media (max-width:560px){.grid2{grid-template-columns:1fr}}
-.top{display:flex;align-items:center;gap:12px;margin-bottom:24px}
 .badge{height:22px;padding:0 9px;border-radius:7px;background:var(--g1);border:1px solid var(--g2);color:var(--g7);font-family:var(--fb);font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;display:inline-flex;align-items:center}
-.err{color:var(--danger);background:var(--danger-bg);border:1px solid rgba(178,59,59,.25);border-radius:12px;padding:10px 14px;font-size:13px;margin-top:12px}
-.msg{color:var(--g7);background:var(--g1);border:1px solid var(--g2);border-radius:12px;padding:10px 14px;font-size:13px;margin-top:12px}
-.mosque-row{display:flex;align-items:center;gap:14px;padding:14px;border-bottom:1px solid var(--line)}
-.mosque-row:last-child{border-bottom:none}
+.err{color:var(--danger);background:var(--danger-bg);border:1px solid rgba(178,59,59,.25);border-radius:12px;padding:10px 14px;font-size:13px;margin-bottom:16px}
+.msg{color:var(--g7);background:var(--g1);border:1px solid var(--g2);border-radius:12px;padding:10px 14px;font-size:13px;margin-bottom:16px}
+.row{display:flex;align-items:center;gap:14px;padding:14px 18px;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:none}
 .spinner{width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;animation:spin .7s linear infinite}
+.spinner-dark{border-color:rgba(20,82,62,.25);border-top-color:var(--g7)}
 @keyframes spin{to{transform:rotate(360deg)}}
 .login-wrap{min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:20px}
 .login-card{width:100%;max-width:360px;padding:32px 28px}
@@ -47,6 +46,32 @@ button{font-family:var(--fh);cursor:pointer;border:none}
 .file-drop .preview-box img{width:100%;height:100%;object-fit:cover;display:block}
 .file-drop .hint{margin-top:10px;font-size:11.5px;color:var(--mut)}
 .thumb-9x16{width:42px;height:74px;border-radius:10px;background:var(--g2) center/cover no-repeat;flex:none;border:1px solid var(--line)}
+
+.shell{display:flex;min-height:100dvh}
+.sidebar{width:230px;flex:none;background:linear-gradient(180deg,#0E3B2E 0%,#08251C 100%);color:#fff;display:flex;flex-direction:column;padding:20px 14px;position:sticky;top:0;height:100dvh}
+.sidebar .brand{display:flex;align-items:center;gap:10px;padding:2px 8px 22px}
+.sidebar .brand h1{font-size:16px;text-transform:uppercase;color:#fff}
+.sidebar nav{display:flex;flex-direction:column;gap:4px;flex:1;overflow-y:auto}
+.navitem{display:flex;align-items:center;gap:11px;padding:12px 12px;border-radius:13px;color:rgba(255,255,255,.68);font-family:var(--fb);font-size:13.5px;font-weight:700;cursor:pointer;transition:background .15s,color .15s}
+.navitem:hover{background:rgba(255,255,255,.07);color:#fff}
+.navitem.active{background:rgba(255,255,255,.14);color:#fff;box-shadow:inset 0 0 0 1px rgba(231,199,101,.28)}
+.navitem svg{flex:none}
+.sidebar .foot{margin-top:auto;padding-top:14px;border-top:1px solid rgba(255,255,255,.12)}
+.sidebar .email{font-size:10.5px;color:rgba(255,255,255,.5);padding:0 8px 10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.main{flex:1;min-width:0}
+.pagehead{display:flex;align-items:center;gap:14px;padding:22px 28px;background:var(--paper);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:2}
+.pagehead h2{font-size:21px;text-transform:uppercase}
+.content{padding:24px 28px 90px;max-width:980px}
+@media (max-width:800px){
+  .shell{flex-direction:column}
+  .sidebar{position:static;height:auto;width:100%;flex-direction:row;align-items:center;gap:14px;padding:12px 16px}
+  .sidebar .brand{padding:0}
+  .sidebar nav{flex-direction:row;overflow-x:auto;flex:1}
+  .navitem{white-space:nowrap}
+  .sidebar .foot{margin-top:0;padding-top:0;border-top:none}
+  .pagehead{padding:18px 18px}
+  .content{padding:18px 18px 90px}
+}
 </style>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap">
@@ -115,22 +140,33 @@ let session = null;
 let items = [];
 let categories = [];
 let activeCategoryId = null;
-let editing = null;   // mosque row being edited, or {} for new
+let editing = null;   // game_items row being edited, or {} for new
+let editingCategory = null; // category row being edited, or {} for new
 let pendingFile = null;
 let loading = false;
 let errorMsg = '';
 let infoMsg = '';
-let activeTab = 'items'; // 'items' | 'avatars'
+let activeTab = 'items'; // 'items' | 'categories' | 'avatars' | 'players'
 let avatars = [];
 let avatarUploading = false;
+let players = [];
+let playersLoading = false;
 
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+const icons = {
+  items:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7.6" height="7.6" rx="2.2"/><rect x="13.4" y="3" width="7.6" height="7.6" rx="2.2"/><rect x="3" y="13.4" width="7.6" height="7.6" rx="2.2"/><rect x="13.4" y="13.4" width="7.6" height="7.6" rx="2.2"/></svg>',
+  categories:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h6"/></svg>',
+  avatars:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.2" r="3.5"/><path d="M5 20.4c0-3.5 3.1-5.9 7-5.9s7 2.4 7 5.9"/></svg>',
+  players:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.3"/><path d="M2 20.5c0-3.4 3.1-5.6 7-5.6s7 2.2 7 5.6M17.6 5.4a3.3 3.3 0 0 1 0 6.2M19.4 14.9c2.3.7 3.6 2.4 3.6 4.4"/></svg>',
+  mosque:'<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-8.2M20 21v-8.2M4.2 12.8C4.2 8.4 7.7 4.9 12 4.9s7.8 3.5 7.8 7.9M12 4.9V2.4M1.8 21h20.4M9 21v-3.7a3 3 0 0 1 6 0V21"/></svg>'
+};
 
 async function init(){
   const { data } = await sb.auth.getSession();
   session = data.session;
   sb.auth.onAuthStateChange((_event, s)=>{ session = s; render(); });
-  if(session){ await loadCategories(); await loadItems(); await loadAvatars(); }
+  if(session){ await Promise.all([loadCategories(), loadItems(), loadAvatars()]); }
   render();
 }
 
@@ -140,7 +176,11 @@ async function loadAvatars(){
   avatars = data || [];
 }
 
-function selectTab(tab){ activeTab = tab; editing = null; errorMsg=''; infoMsg=''; render(); }
+function selectTab(tab){
+  activeTab = tab; editing = null; editingCategory = null; errorMsg=''; infoMsg='';
+  if(tab==='players' && !players.length) loadPlayers();
+  render();
+}
 
 async function uploadAvatarFile(input){
   const file = input.files && input.files[0];
@@ -186,27 +226,67 @@ async function loadCategories(){
   if(activeCategoryId && !categories.some(c=>c.id===activeCategoryId)) activeCategoryId = null;
 }
 
-async function addCategory(){
-  const nameKz = (window.prompt('Санат атауы (қазақша):') || '').trim();
-  if(!nameKz) return;
-  const nameRu = (window.prompt('Санат атауы (орысша). Бос қалдырсаңыз қазақшасы қолданылады:') || '').trim() || nameKz;
-  const key = nameKz.toLowerCase().replace(/[^a-zа-яәғқңөұүһі0-9]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,40) + '-' + Date.now().toString(36);
+function categoryItemCount(catId){ return items.filter(m=>m.category_id===catId).length; }
+
+function startNewCategory(){
+  editingCategory = { name_kz:'', name_ru:'', sort_order: categories.length };
+  errorMsg=''; infoMsg='';
+  render();
+}
+function startEditCategory(c){
+  editingCategory = Object.assign({}, c);
+  errorMsg=''; infoMsg='';
+  render();
+}
+function startEditCategoryById(id){
+  const c = categories.find(x=>x.id===id);
+  if(c) startEditCategory(c);
+}
+function cancelEditCategory(){ editingCategory = null; render(); }
+
+async function saveCategory(e){
+  e.preventDefault();
+  errorMsg=''; infoMsg='';
+  const c = editingCategory;
+  c.name_kz = document.getElementById('c_name_kz').value.trim();
+  c.name_ru = document.getElementById('c_name_ru').value.trim() || c.name_kz;
+  c.sort_order = parseInt(document.getElementById('c_sort').value,10) || 0;
+  if(!c.name_kz){ errorMsg = 'Санат атауын (кемінде қазақша) толтырыңыз.'; render(); return; }
   loading = true; render();
   try{
-    const { error } = await sb.from('categories').insert({ key, name_kz:nameKz, name_ru:nameRu, sort_order: categories.length });
-    if(error) throw error;
+    if(c.id){
+      const { error } = await sb.from('categories').update({ name_kz:c.name_kz, name_ru:c.name_ru, sort_order:c.sort_order }).eq('id', c.id);
+      if(error) throw error;
+      infoMsg = 'Сақталды.';
+    } else {
+      const key = c.name_kz.toLowerCase().replace(/[^a-zа-яәғқңөұүһі0-9]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,40) + '-' + Date.now().toString(36);
+      const { error } = await sb.from('categories').insert({ key, name_kz:c.name_kz, name_ru:c.name_ru, sort_order:c.sort_order });
+      if(error) throw error;
+      infoMsg = 'Санат қосылды.';
+    }
+    editingCategory = null;
+    loading = false;
     await loadCategories();
-    loading = false;
     render();
-  }catch(e){
+  }catch(err){
     loading = false;
-    errorMsg = 'Санат қосу қатесі: '+(e.message||e);
+    errorMsg = 'Сақтау қатесі: '+(err.message||err);
     render();
   }
 }
 
-function selectCategoryFilter(id){
-  activeCategoryId = id || null;
+async function deleteCategoryById(id){
+  const c = categories.find(x=>x.id===id);
+  if(!c) return;
+  const n = categoryItemCount(id);
+  if(n>0){ errorMsg = '«'+c.name_kz+'» санатында '+n+' зат бар. Алдымен сол заттарды басқа санатқа ауыстырыңыз немесе жойыңыз.'; render(); return; }
+  if(!confirm('«'+c.name_kz+'» санатын жоюды растайсыз ба?')) return;
+  loading = true; render();
+  const { error } = await sb.from('categories').delete().eq('id', id);
+  loading = false;
+  if(error){ errorMsg = 'Жою қатесі: '+error.message; render(); return; }
+  infoMsg = 'Жойылды.';
+  await loadCategories();
   render();
 }
 
@@ -216,6 +296,48 @@ async function loadItems(){
   loading = false;
   if(error){ errorMsg = 'Тізімді жүктеу қатесі: '+error.message; render(); return; }
   items = data || [];
+  render();
+}
+
+async function loadPlayers(){
+  playersLoading = true; render();
+  const { data, error } = await sb.from('players')
+    .select('id,name,city,email,best_score,coins,player_number,created_at')
+    .order('created_at',{ascending:false});
+  playersLoading = false;
+  if(error){ errorMsg = 'Ойыншыларды жүктеу қатесі: '+error.message; render(); return; }
+  players = data || [];
+  render();
+}
+
+async function deletePlayerById(id){
+  const p = players.find(x=>x.id===id);
+  if(!p) return;
+  if(!confirm('«'+(p.name||'Ойыншы')+'» профилін жоюды растайсыз ба? Бұл әрекетті болдырмау мүмкін емес.')) return;
+  loading = true; render();
+  const { error } = await sb.from('players').delete().eq('id', id);
+  loading = false;
+  if(error){ errorMsg = 'Жою қатесі: '+error.message; render(); return; }
+  infoMsg = 'Ойыншы профилі жойылды.';
+  await loadPlayers();
+  render();
+}
+
+// Admin never sees or sets a player's password directly -- that would
+// require the service_role key, which must never be shipped to a
+// static client-side page like this one (it bypasses every RLS
+// policy in the database). Instead this sends Supabase's standard
+// "reset your password" email; the player sets the new password
+// themselves via that link.
+async function sendPasswordReset(id){
+  const p = players.find(x=>x.id===id);
+  if(!p) return;
+  if(!p.email){ errorMsg = 'Бұл ойыншының email мекенжайы белгісіз, сілтеме жіберу мүмкін емес.'; render(); return; }
+  loading = true; render();
+  const { error } = await sb.auth.resetPasswordForEmail(p.email);
+  loading = false;
+  if(error){ errorMsg = 'Жіберу қатесі: '+error.message; render(); return; }
+  infoMsg = '«'+(p.name||'Ойыншы')+'» үшін құпия сөзді қалпына келтіру сілтемесі '+p.email+' мекенжайына жіберілді.';
   render();
 }
 
@@ -236,13 +358,13 @@ async function login(e){
     render();
     return;
   }
-  await loadCategories();
-  await loadItems();
+  await Promise.all([loadCategories(), loadItems(), loadAvatars()]);
+  render();
 }
 
 async function logout(){
   await sb.auth.signOut();
-  session = null; items = []; categories = []; avatars = []; editing = null; activeTab = 'items';
+  session = null; items = []; categories = []; avatars = []; players = []; editing = null; editingCategory = null; activeTab = 'items';
   render();
 }
 
@@ -349,9 +471,9 @@ function deleteItemById(id){
 
 async function importBuiltins(){
   if(importing) return;
-  const mosquesCat = categories.find(c=>c.key==='mosques');
+  const mosquesCat = categories.find(c=>c.key==='kzMosques' || c.key==='mosques');
   if(!mosquesCat){
-    errorMsg = '«Мешіттер» санаты табылмады. Алдымен supabase/categories.sql орындалғанын тексеріңіз.';
+    errorMsg = '«Қазақстан мешіттері» санаты табылмады. Алдымен supabase/categories.sql және p10_categories_match_site.sql орындалғанын тексеріңіз.';
     render(); return;
   }
   importing = true; errorMsg=''; infoMsg=''; importProgress='Басталды…';
@@ -393,15 +515,13 @@ async function importBuiltins(){
 function renderLogin(){
   return `<div class="login-wrap"><form class="card login-card" onsubmit="login(event)">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:22px">
-      <div style="width:38px;height:38px;border-radius:13px;background:linear-gradient(150deg,#1B6B50,#0E3B2E);display:grid;place-items:center;color:#E7C765">
-        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-8.2M20 21v-8.2M4.2 12.8C4.2 8.4 7.7 4.9 12 4.9s7.8 3.5 7.8 7.9M12 4.9V2.4M1.8 21h20.4M9 21v-3.7a3 3 0 0 1 6 0V21"/></svg>
-      </div>
+      <div style="width:38px;height:38px;border-radius:13px;background:linear-gradient(150deg,#1B6B50,#0E3B2E);display:grid;place-items:center;color:#E7C765">${icons.mosque}</div>
       <h1 style="font-size:19px;text-transform:uppercase">Admin</h1>
     </div>
     <div class="field"><label>Email</label><input id="loginEmail" type="email" required autocomplete="username"></div>
     <div class="field"><label>Құпия сөз</label><input id="loginPassword" type="password" required autocomplete="current-password"></div>
     <button class="btn btn-primary" style="width:100%" type="submit" ${loading?'disabled':''}>${loading?'<span class="spinner"></span>':'Кіру'}</button>
-    ${errorMsg?`<div class="err">${esc(errorMsg)}</div>`:''}
+    ${errorMsg?`<div class="err" style="margin-top:12px;margin-bottom:0">${esc(errorMsg)}</div>`:''}
   </form></div>`;
 }
 
@@ -409,10 +529,10 @@ function renderForm(){
   const f = editing;
   const preview = f._preview || f.image_url;
   const catOptions = categories.map(c=>`<option value="${c.id}" ${f.category_id===c.id?'selected':''}>${esc(c.name_kz)}</option>`).join('');
-  return `<div class="card" style="padding:20px;margin-bottom:22px">
+  return `<div class="card" style="padding:20px">
   <h2 style="font-size:18px;text-transform:uppercase;margin-bottom:16px">${f.id?'Затты өңдеу':'Жаңа зат'}</h2>
   <form onsubmit="saveItem(event)">
-    <div class="field"><label>Санат *</label>
+    <div class="field"><label>Санат * <span style="text-transform:none;font-weight:600;color:var(--mut)">— сайттағы «Менің жинағым» санаттарымен бірдей</span></label>
       <select id="f_category" required>${catOptions}</select>
     </div>
     <div class="field">
@@ -446,20 +566,26 @@ function renderForm(){
   </div>`;
 }
 
-function renderTopBar(){
-  return `<div class="top">
-    <div style="width:38px;height:38px;border-radius:13px;background:linear-gradient(150deg,#1B6B50,#0E3B2E);display:grid;place-items:center;color:#E7C765;flex:none">
-      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-8.2M20 21v-8.2M4.2 12.8C4.2 8.4 7.7 4.9 12 4.9s7.8 3.5 7.8 7.9M12 4.9V2.4M1.8 21h20.4M9 21v-3.7a3 3 0 0 1 6 0V21"/></svg>
+const NAV = [
+  {id:'items', label:'Заттар'},
+  {id:'categories', label:'Санаттар'},
+  {id:'avatars', label:'Аватарлар'},
+  {id:'players', label:'Ойыншылар'}
+];
+
+function renderSidebar(){
+  return `<div class="sidebar">
+    <div class="brand">
+      <div style="width:32px;height:32px;border-radius:10px;background:rgba(255,255,255,.12);display:grid;place-items:center;color:#E7C765;flex:none">${icons.mosque}</div>
+      <h1>Admin</h1>
     </div>
-    <div style="flex:1;min-width:0">
-      <h1 style="font-size:20px;text-transform:uppercase">Мазмұн — Admin</h1>
-      <span class="badge">${esc(session.user.email)}</span>
+    <nav>
+      ${NAV.map(n=>`<div class="navitem${activeTab===n.id?' active':''}" onclick="selectTab('${n.id}')">${icons[n.id]}<span>${esc(n.label)}</span></div>`).join('')}
+    </nav>
+    <div class="foot">
+      <div class="email">${esc(session.user.email)}</div>
+      <button class="btn btn-ghost btn-sm" style="width:100%" onclick="logout()">Шығу</button>
     </div>
-    <button class="btn btn-ghost btn-sm" onclick="logout()">Шығу</button>
-  </div>
-  <div style="display:flex;gap:8px;margin-bottom:20px">
-    <button class="btn btn-sm" onclick="selectTab('items')" style="background:${activeTab==='items'?'#0E3B2E':'var(--paper)'};color:${activeTab==='items'?'#fff':'var(--g8)'};border:1px solid var(--line)">Заттар</button>
-    <button class="btn btn-sm" onclick="selectTab('avatars')" style="background:${activeTab==='avatars'?'#0E3B2E':'var(--paper)'};color:${activeTab==='avatars'?'#fff':'var(--g8)'};border:1px solid var(--line)">Аватарлар</button>
   </div>`;
 }
 
@@ -470,15 +596,12 @@ function renderAvatarsDashboard(){
       <button class="btn btn-danger btn-sm" onclick="deleteAvatarById('${a.id}')">Жою</button>
     </div>`).join('');
 
-  return `<div class="wrap">
-  ${renderTopBar()}
-  ${errorMsg?`<div class="err">${esc(errorMsg)}</div>`:''}
-  ${infoMsg?`<div class="msg">${esc(infoMsg)}</div>`:''}
+  return `
   <div class="card" style="padding:20px;margin-bottom:20px">
     <h2 style="font-size:16px;text-transform:uppercase;margin-bottom:6px">Аватар үлгісін қосу</h2>
     <p style="font-size:12.5px;color:var(--mut);margin:0 0 14px">PNG формат, дөңгелек кесілген (шаршы 1:1 сурет ұсынылады). Ойыншылар осы тізімнен өз аватарын таңдайды.</p>
     <div class="file-drop" style="padding:20px" onclick="document.getElementById('avatar_file').click()">
-      ${avatarUploading ? '<span class="spinner" style="border-color:rgba(20,82,62,.25);border-top-color:var(--g7)"></span>&nbsp; Жүктелуде…' : '+ PNG жүктеу'}
+      ${avatarUploading ? '<span class="spinner spinner-dark"></span>&nbsp; Жүктелуде…' : '+ PNG жүктеу'}
     </div>
     <input id="avatar_file" type="file" accept="image/png,image/*" style="display:none" onchange="uploadAvatarFile(this)">
   </div>
@@ -487,14 +610,72 @@ function renderAvatarsDashboard(){
     ${avatars.length
       ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:16px">${grid}</div>`
       : `<div style="text-align:center;color:var(--mut);padding:10px 0">Әзірге аватар үлгісі жоқ.</div>`}
-  </div>
   </div>`;
 }
 
-function renderDashboard(){
+function renderCategoryForm(){
+  const c = editingCategory;
+  return `<div class="card" style="padding:20px;margin-bottom:20px">
+  <h2 style="font-size:16px;text-transform:uppercase;margin-bottom:16px">${c.id?'Санатты өңдеу':'Жаңа санат'}</h2>
+  <form onsubmit="saveCategory(event)">
+    <div class="grid2">
+      <div class="field"><label>Атауы (қазақша) *</label><input id="c_name_kz" value="${esc(c.name_kz)}" required></div>
+      <div class="field"><label>Атауы (орысша)</label><input id="c_name_ru" value="${esc(c.name_ru)}" placeholder="бос болса қазақшасы алынады"></div>
+    </div>
+    <div class="field" style="max-width:160px"><label>Реті</label><input id="c_sort" type="number" value="${esc(c.sort_order||0)}"></div>
+    <div style="display:flex;gap:10px;margin-top:6px">
+      <button class="btn btn-primary" type="submit" ${loading?'disabled':''}>${loading?'<span class="spinner"></span>':'Сақтау'}</button>
+      <button class="btn btn-ghost" type="button" onclick="cancelEditCategory()">Бас тарту</button>
+    </div>
+  </form>
+  </div>`;
+}
+
+function renderCategoriesPage(){
+  const rows = categories.map(c=>`
+    <div class="row">
+      <div style="width:40px;height:40px;border-radius:13px;background:var(--g1);border:1px solid var(--g2);display:grid;place-items:center;color:var(--g7);flex:none">${icons.categories}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.name_kz)}</div>
+        <div style="font-size:12px;color:var(--mut);margin-top:2px">${esc(c.name_ru)} · ${categoryItemCount(c.id)} зат</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="startEditCategoryById('${c.id}')">Өңдеу</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteCategoryById('${c.id}')">Жою</button>
+    </div>`).join('');
+
+  return `
+  ${editingCategory ? renderCategoryForm() : `<div style="margin-bottom:20px">
+    <button class="btn btn-primary" onclick="startNewCategory()">+ Жаңа санат</button>
+  </div>`}
+  <div class="card">
+    ${categories.length ? rows : `<div style="padding:24px;text-align:center;color:var(--mut)">Әзірге санат жоқ.</div>`}
+  </div>`;
+}
+
+function renderPlayersPage(){
+  const rows = players.map(p=>`
+    <div class="row">
+      <div style="width:40px;height:40px;border-radius:13px;background:var(--g1);border:1px solid var(--g2);display:grid;place-items:center;color:var(--g7);flex:none;font-family:var(--fh);font-size:15px">${esc((p.name||'О')[0].toUpperCase())}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name||'Ойыншы')}${p.player_number!=null?` <span style="color:var(--mut);font-weight:600">· ID ${String(p.player_number).padStart(5,'0')}</span>`:''}</div>
+        <div style="font-size:12px;color:var(--mut);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.city||'—')} · ${p.best_score||0} ұпай${p.email?' · '+esc(p.email):''}</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="sendPasswordReset('${p.id}')" ${p.email?'':'disabled title="Email белгісіз"'}>Құпия сөзді ауыстыру</button>
+      <button class="btn btn-danger btn-sm" onclick="deletePlayerById('${p.id}')">Жою</button>
+    </div>`).join('');
+
+  return `
+  <div class="msg" style="margin-bottom:20px">«Құпия сөзді ауыстыру» ойыншыға парольді қалпына келтіру сілтемесі бар email жібереді — жаңа парольді ойыншы өзі орнатады, админ оны көрмейді де, тікелей орнатпайды да. «Жою» тек ойыншының ойын профилін (players) өшіреді, оның кіру аккаунтын емес.</div>
+  <div class="card">
+    ${playersLoading ? `<div style="padding:24px;text-align:center;color:var(--mut)">Жүктелуде…</div>` :
+      players.length ? rows : `<div style="padding:24px;text-align:center;color:var(--mut)">Әзірге ойыншы жоқ.</div>`}
+  </div>`;
+}
+
+function renderItemsPage(){
   const filtered = activeCategoryId ? items.filter(m=>m.category_id===activeCategoryId) : items;
   const rows = filtered.map(m=>`
-    <div class="mosque-row">
+    <div class="row">
       <div class="thumb-9x16" style="background-image:url('${esc(m.image_url)}')"></div>
       <div style="flex:1;min-width:0">
         <div style="font-weight:700;font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.name_kz)}</div>
@@ -507,33 +688,52 @@ function renderDashboard(){
   const catPills = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
     <button class="btn btn-sm" onclick="selectCategoryFilter(null)" style="background:${activeCategoryId?'var(--paper)':'#0E3B2E'};color:${activeCategoryId?'var(--g8)':'#fff'};border:1px solid var(--line)">Барлығы</button>
     ${categories.map(c=>`<button class="btn btn-sm" onclick="selectCategoryFilter('${c.id}')" style="background:${activeCategoryId===c.id?'#0E3B2E':'var(--paper)'};color:${activeCategoryId===c.id?'#fff':'var(--g8)'};border:1px solid var(--line)">${esc(c.name_kz)}</button>`).join('')}
-    <button class="btn btn-sm btn-ghost" onclick="addCategory()">+ Санат</button>
   </div>`;
 
-  return `<div class="wrap">
-  ${renderTopBar()}
-
-  ${errorMsg?`<div class="err">${esc(errorMsg)}</div>`:''}
-  ${infoMsg?`<div class="msg">${esc(infoMsg)}</div>`:''}
-
+  return `
   ${editing ? renderForm() : `${catPills}
   <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
     <button class="btn btn-primary" onclick="startNew()" ${categories.length?'':'disabled'}>+ Жаңа зат қосу</button>
     <button class="btn btn-ghost" onclick="importBuiltins()" ${importing?'disabled':''}>
-      ${importing ? '<span class="spinner" style="border-color:rgba(20,82,62,.25);border-top-color:var(--g7)"></span>&nbsp; '+esc(importProgress) : 'Сайттағы 14 мешітті импорттау'}
+      ${importing ? '<span class="spinner spinner-dark"></span>&nbsp; '+esc(importProgress) : 'Сайттағы 14 мешітті импорттау'}
     </button>
   </div>`}
 
   <div class="card">
     ${loading && !items.length ? `<div style="padding:24px;text-align:center;color:var(--mut)">Жүктелуде…</div>` :
-      filtered.length ? rows : `<div style="padding:24px;text-align:center;color:var(--mut)">Әзірге бұл санатта ештеңе жоқ.</div>`}
-  </div>
+      (!editing && filtered.length===0) ? `<div style="padding:24px;text-align:center;color:var(--mut)">Әзірге бұл санатта ештеңе жоқ.</div>` :
+      (!editing ? rows : '')}
+  </div>`;
+}
+
+function selectCategoryFilter(id){
+  activeCategoryId = id || null;
+  render();
+}
+
+const PAGE_TITLE = { items:'Заттар', categories:'Санаттар', avatars:'Аватарлар', players:'Ойыншылар' };
+
+function renderDashboard(){
+  const body = activeTab==='avatars' ? renderAvatarsDashboard()
+    : activeTab==='categories' ? renderCategoriesPage()
+    : activeTab==='players' ? renderPlayersPage()
+    : renderItemsPage();
+  return `<div class="shell">
+    ${renderSidebar()}
+    <div class="main">
+      <div class="pagehead"><h2>${esc(PAGE_TITLE[activeTab])}</h2></div>
+      <div class="content">
+        ${errorMsg?`<div class="err">${esc(errorMsg)}</div>`:''}
+        ${infoMsg?`<div class="msg">${esc(infoMsg)}</div>`:''}
+        ${body}
+      </div>
+    </div>
   </div>`;
 }
 
 function render(){
   if(!session){ app.innerHTML = renderLogin(); return; }
-  app.innerHTML = activeTab==='avatars' ? renderAvatarsDashboard() : renderDashboard();
+  app.innerHTML = renderDashboard();
 }
 
 init();
