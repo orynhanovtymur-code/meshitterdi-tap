@@ -177,7 +177,7 @@ const CHIP_OFF = 'height:24px;padding:0 11px;border-radius:8px;background:transp
 
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-let state = { screen:'splash', lang:'kz', coins:1240, found:[], name:'Ойыншы', city:'', email:'',
+let state = { screen:'splash', lang:'kz', coins:0, found:[], name:'Ойыншы', city:'', email:'',
   playerId:null, playerNumber:null, bestScore:0, leaderboard:null, boardFilter:'all', myRank:null, unlockedStage:1, currentStage:null,
   gamesPlayed:0, bestTimeSeconds:null,
   xp:0, hasFlawlessWin:false, hasFastWin:false, currentStreak:0, lastPlayedDate:null,
@@ -397,7 +397,7 @@ async function logout(){
   if(sb && state.globalChannel){ sb.removeChannel(state.globalChannel); }
   state.globalChannel = null;
   teardownDuelChannel();
-  state.playerId = null; state.playerNumber = null; state.coins = 1240; state.found = []; state.name = 'Ойыншы'; state.city = ''; state.email='';
+  state.playerId = null; state.playerNumber = null; state.coins = 0; state.found = []; state.name = 'Ойыншы'; state.city = ''; state.email='';
   state.bestScore = 0; state.leaderboard = null; state.authMode='login'; state.authError=''; state.authInfo='';
   state.friends = []; state.incomingDuelInvite=null; state.myFriendCode=null; state.unlockedStage=1;
   try{
