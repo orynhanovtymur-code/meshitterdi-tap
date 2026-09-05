@@ -2392,6 +2392,12 @@ function screenProfile(t,s){
   <div onclick="openCoinsModal()" data-hover style="padding:15px;border-radius:22px;background:var(--gold1);border:1px solid rgba(201,162,39,.3);cursor:pointer">
   <div style="color:#8A6E10">${svg.reward}</div><div style="font-family:var(--fh);font-size:28px;margin-top:9px;line-height:1;color:#6E5511">${s.coins.toLocaleString('ru-RU')}</div>
   <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#8A6E10;margin-top:3px">${esc(t.coins)}</div></div></div>
+  <div style="margin:10px 18px 0;padding:15px;border-radius:22px;background:var(--paper);border:1px solid var(--line);display:flex;align-items:center;gap:14px">
+  <div style="width:44px;height:44px;border-radius:16px;background:var(--g1);border:1px solid var(--g2);display:grid;place-items:center;color:var(--g7);flex:none">${svg.invite}</div>
+  <div style="flex:1;display:flex;gap:20px">
+  <div><div style="font-family:var(--fh);font-size:22px;line-height:1;color:#2E8365">${s.duelWins||0}</div><div style="font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);margin-top:3px">${s.lang==='kz'?'Жеңіс':'Побед'}</div></div>
+  <div><div style="font-family:var(--fh);font-size:22px;line-height:1;color:#A03232">${s.duelLosses||0}</div><div style="font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);margin-top:3px">${s.lang==='kz'?'Жеңіліс':'Поражений'}</div></div>
+  </div></div>
   <div onclick="goBoard()" data-hover style="margin:14px 18px 0;padding:17px;border-radius:24px;background:var(--paper);border:1px solid var(--line);display:flex;align-items:center;gap:14px;cursor:pointer">
   <div style="width:44px;height:44px;border-radius:16px;background:var(--g1);border:1px solid var(--g2);display:grid;place-items:center;color:var(--g7);flex:none">${svg.rating}</div>
   <div style="flex:1;min-width:0"><div style="font-family:var(--fh);font-size:19px;line-height:1.1">${esc(t.rating)}</div>
