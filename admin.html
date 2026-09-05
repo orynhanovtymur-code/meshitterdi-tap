@@ -279,7 +279,7 @@ async function deleteCategoryById(id){
   const c = categories.find(x=>x.id===id);
   if(!c) return;
   const n = categoryItemCount(id);
-  if(n>0){ errorMsg = '«'+c.name_kz+'» санатында '+n+' зат бар. Алдымен сол заттарды басқа санатқа ауыстырыңыз немесе жойыңыз.'; render(); return; }
+  if(n>0){ errorMsg = '«'+c.name_kz+'» санатында '+n+' сурет бар. Алдымен сол суреттерді басқа санатқа ауыстырыңыз немесе жойыңыз.'; render(); return; }
   if(!confirm('«'+c.name_kz+'» санатын жоюды растайсыз ба?')) return;
   loading = true; render();
   const { error } = await sb.from('categories').delete().eq('id', id);
@@ -530,7 +530,7 @@ function renderForm(){
   const preview = f._preview || f.image_url;
   const catOptions = categories.map(c=>`<option value="${c.id}" ${f.category_id===c.id?'selected':''}>${esc(c.name_kz)}</option>`).join('');
   return `<div class="card" style="padding:20px">
-  <h2 style="font-size:18px;text-transform:uppercase;margin-bottom:16px">${f.id?'Затты өңдеу':'Жаңа зат'}</h2>
+  <h2 style="font-size:18px;text-transform:uppercase;margin-bottom:16px">${f.id?'Суретті өңдеу':'Жаңа сурет'}</h2>
   <form onsubmit="saveItem(event)">
     <div class="field"><label>Санат * <span style="text-transform:none;font-weight:600;color:var(--mut)">— сайттағы «Менің жинағым» санаттарымен бірдей</span></label>
       <select id="f_category" required>${catOptions}</select>
@@ -557,7 +557,7 @@ function renderForm(){
       <div class="field"><label>Жұп кілті (міндетті емес)</label><input id="f_pair_key" value="${esc(f.pair_key||'')}" placeholder="мыс.: yasaui"></div>
       <div class="field"><label>Реті</label><input id="f_sort" type="number" value="${esc(f.sort_order||0)}"></div>
     </div>
-    <div class="hint" style="margin:-8px 0 14px">Бірдей кілт енгізілген екі зат ойында бір-бірімен жұп болады (мысалы, «Ясауи» аты мен кесенесінің суреті). Бос қалдырса — зат әдеттегідей өз суретінің көшірмесімен жұптасады.</div>
+    <div class="hint" style="margin:-8px 0 14px">Бірдей кілт енгізілген екі сурет ойында бір-бірімен жұп болады (мысалы, «Ясауи» аты мен кесенесінің суреті). Бос қалдырса — сурет әдеттегідей өз суретінің көшірмесімен жұптасады.</div>
     <div style="display:flex;gap:10px;margin-top:6px">
       <button class="btn btn-primary" type="submit" ${loading?'disabled':''}>${loading?'<span class="spinner"></span>':'Сақтау'}</button>
       <button class="btn btn-ghost" type="button" onclick="cancelEdit()">Бас тарту</button>
@@ -567,7 +567,7 @@ function renderForm(){
 }
 
 const NAV = [
-  {id:'items', label:'Заттар'},
+  {id:'items', label:'Суреттер'},
   {id:'categories', label:'Санаттар'},
   {id:'avatars', label:'Аватарлар'},
   {id:'players', label:'Ойыншылар'}
@@ -637,7 +637,7 @@ function renderCategoriesPage(){
       <div style="width:40px;height:40px;border-radius:13px;background:var(--g1);border:1px solid var(--g2);display:grid;place-items:center;color:var(--g7);flex:none">${icons.categories}</div>
       <div style="flex:1;min-width:0">
         <div style="font-weight:700;font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.name_kz)}</div>
-        <div style="font-size:12px;color:var(--mut);margin-top:2px">${esc(c.name_ru)} · ${categoryItemCount(c.id)} зат</div>
+        <div style="font-size:12px;color:var(--mut);margin-top:2px">${esc(c.name_ru)} · ${categoryItemCount(c.id)} сурет</div>
       </div>
       <button class="btn btn-ghost btn-sm" onclick="startEditCategoryById('${c.id}')">Өңдеу</button>
       <button class="btn btn-danger btn-sm" onclick="deleteCategoryById('${c.id}')">Жою</button>
@@ -693,7 +693,7 @@ function renderItemsPage(){
   return `
   ${editing ? renderForm() : `${catPills}
   <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
-    <button class="btn btn-primary" onclick="startNew()" ${categories.length?'':'disabled'}>+ Жаңа зат қосу</button>
+    <button class="btn btn-primary" onclick="startNew()" ${categories.length?'':'disabled'}>+ Сурет қосу</button>
     <button class="btn btn-ghost" onclick="importBuiltins()" ${importing?'disabled':''}>
       ${importing ? '<span class="spinner spinner-dark"></span>&nbsp; '+esc(importProgress) : 'Сайттағы 14 мешітті импорттау'}
     </button>
@@ -711,7 +711,7 @@ function selectCategoryFilter(id){
   render();
 }
 
-const PAGE_TITLE = { items:'Заттар', categories:'Санаттар', avatars:'Аватарлар', players:'Ойыншылар' };
+const PAGE_TITLE = { items:'Суреттер', categories:'Санаттар', avatars:'Аватарлар', players:'Ойыншылар' };
 
 function renderDashboard(){
   const body = activeTab==='avatars' ? renderAvatarsDashboard()
