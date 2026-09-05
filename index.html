@@ -1679,7 +1679,7 @@ const PLAYER_TIERS = [
 ];
 function playerTierLabel(xp, lang){
   const tier = Math.min(Math.max(levelFromXP(xp).level - 1, 0), 5);
-  const stars = tier===0 ? '☆' : '★'.repeat(tier);
+  const stars = '★'.repeat(tier) + '☆'.repeat(6-tier);
   return stars+' '+PLAYER_TIERS[tier][lang];
 }
 
@@ -2340,7 +2340,8 @@ function screenProfile(t,s){
   <div style="position:relative;padding:24px 22px 22px;display:flex;align-items:center;gap:15px">
   <div onclick="goSettings()" data-hover style="cursor:pointer">${avatarRing(s.name, s.avatarUrl, 68, 'linear-gradient(150deg,#E7C765,#C9A227)', 'linear-gradient(150deg,#E7C765,#C9A227)', '#3A2D06', 26, 4, 'box-shadow:0 14px 28px -10px rgba(201,162,39,.7),inset 0 2px 0 rgba(255,255,255,.45)')}</div>
   <div style="flex:1;min-width:0">
-  <h3 onclick="goSettings()" style="font-size:27px;color:#fff;text-transform:uppercase;cursor:pointer">${esc(s.name)}</h3>
+  <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.55)">${esc(playerTierLabel(s.xp, s.lang))}</div>
+  <h3 onclick="goSettings()" style="font-size:27px;color:#fff;text-transform:uppercase;cursor:pointer;margin-top:2px">${esc(s.name)}</h3>
   <div style="display:flex;align-items:center;gap:7px;margin-top:6px">
   <span style="height:21px;padding:0 8px;border-radius:6px;background:rgba(231,199,101,.16);border:1px solid rgba(231,199,101,.3);color:#E7C765;font-size:9.5px;font-weight:800;letter-spacing:.12em;display:flex;align-items:center;white-space:nowrap;flex:none">${esc(t.levelTag)} ${lvlInfo.level}</span>
   <span style="font-size:11.5px;font-weight:700;color:rgba(255,255,255,.75)">${s.myRank?(s.myRank+'-'+t.rank+' · '+t.overallRating):t.overallRating}</span></div>
