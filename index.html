@@ -571,8 +571,10 @@ async function loadInviteHostName(hostId){
 // channel; presenceState() is always the live, synced truth, so
 // "Жаңарту" just re-derives the list from it instead of a network call.
 let liveChannel = null;
-function syncLivePlayers(){
-  if(!liveChannel) return;
+// Reads the current presence truth on demand -- pure read, no state
+// mutation or render, so it's safe to call from anywhere.
+function computeLivePlayers(){
+  if(!liveChannel) return [];
   const presenceState = liveChannel.presenceState();
   const list = [];
   Object.keys(presenceState).forEach(key=>{
@@ -583,18 +585,24 @@ function syncLivePlayers(){
       list.push({ id:key, name:p.name||'Ойыншы', coins:p.coins||0, avatarUrl:p.avatarUrl||null });
     }
   });
-  state.livePlayers = list.slice(0,10);
-  if(state.screen==='home') render();
+  return list.slice(0,10);
 }
+// Home's LIVE row deliberately does NOT auto-update as players come and
+// go -- it's only ever (re)read once here at subscribe time, and after
+// that solely by the player pressing the refresh button (refreshLivePlayers),
+// so someone else joining never silently reshuffles the screen you're on.
 function subscribeLivePlayers(){
   if(!sb || !state.playerId || liveChannel) return;
   liveChannel = sb.channel('online-players', { config:{ presence:{ key: state.playerId } } });
   liveChannel
-    .on('presence', {event:'sync'}, syncLivePlayers)
-    .on('presence', {event:'join'}, syncLivePlayers)
-    .on('presence', {event:'leave'}, syncLivePlayers)
     .subscribe(status=>{
-      if(status==='SUBSCRIBED') liveChannel.track({ name: state.name, coins: state.coins, avatarUrl: state.avatarUrl });
+      if(status==='SUBSCRIBED'){
+        liveChannel.track({ name: state.name, coins: state.coins, avatarUrl: state.avatarUrl });
+        setTimeout(()=>{
+          state.livePlayers = computeLivePlayers();
+          if(state.screen==='home') render();
+        }, 600);
+      }
     });
 }
 function retrackPresence(){
@@ -606,7 +614,8 @@ function teardownLiveChannel(){
   state.livePlayers = [];
 }
 function refreshLivePlayers(){
-  syncLivePlayers();
+  state.livePlayers = computeLivePlayers();
+  render();
   toast(state.lang==='kz' ? 'Жаңартылды' : 'Обновлено');
 }
 function inviteLivePlayer(id, name){
