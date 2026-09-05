@@ -189,8 +189,8 @@ let state = { screen:'splash', lang:'kz', coins:0, found:[], name:'Ойыншы'
   settingsError:'', settingsInfo:'', settingsLoading:false, prevScreen:'home',
   duelRoom:null, duelRole:null, duelChannel:null, duelError:'', duelLoading:false,
   duelCountdownN:3, duelDeckIds:[], duelFlipped:[], duelMatches:[], duelLocked:false,
-  duelOpponentId:null, duelOpponentName:'', duelResult:null, duelResultFinalized:false, duelDeclinedMsg:'',
-  duelPendingFriendId:null, duelPendingFriendName:'',
+  duelOpponentId:null, duelOpponentName:'', duelOpponentAvatarUrl:null, duelResult:null, duelResultFinalized:false, duelDeclinedMsg:'',
+  duelPendingFriendId:null, duelPendingFriendName:'', duelPendingFriendAvatarUrl:null,
   duelIsBot:false, duelPendingIsBot:false, duelBotSeen:{},
   duelCols:4, duelSeconds:0, duelLeft:0,
   duelStartedAt:null, duelJoinError:'', duelJoinLoading:false,
@@ -549,20 +549,20 @@ function subscribeGlobalInvites(){
       }
       if(state.screen==='duelGame' || state.screen==='duelCountdown') return;
       if(state.incomingDuelInvite && state.incomingDuelInvite.roomId===row.id) return;
-      loadInviteHostName(row.host_id).then(hostName=>{
-        state.incomingDuelInvite = { roomId: row.id, hostId: row.host_id, hostName };
+      loadInviteHostInfo(row.host_id).then(info=>{
+        state.incomingDuelInvite = { roomId: row.id, hostId: row.host_id, hostName: info.name, hostAvatarUrl: info.avatarUrl };
         render();
       });
     })
     .subscribe();
 }
 
-async function loadInviteHostName(hostId){
+async function loadInviteHostInfo(hostId){
   try{
-    const { data } = await sb.from('players').select('name').eq('id', hostId).maybeSingle();
-    return (data && data.name) || (state.lang==='kz' ? 'Досың' : 'Друг');
+    const { data } = await sb.from('players').select('name,avatar_url').eq('id', hostId).maybeSingle();
+    return { name: (data && data.name) || (state.lang==='kz' ? 'Досың' : 'Друг'), avatarUrl: (data && data.avatar_url) || null };
   }catch(e){
-    return state.lang==='kz' ? 'Досың' : 'Друг';
+    return { name: state.lang==='kz' ? 'Досың' : 'Друг', avatarUrl: null };
   }
 }
 
@@ -624,20 +624,22 @@ function refreshLivePlayers(){
   render();
   toast(state.lang==='kz' ? 'Жаңартылды' : 'Обновлено');
 }
-function inviteLivePlayer(id, name){
+function inviteLivePlayer(id, name, avatarUrl){
   if(!requireAuth()) return;
   state.duelPendingFriendId = id;
   state.duelPendingFriendName = name;
+  state.duelPendingFriendAvatarUrl = avatarUrl || null;
   state.duelPendingIsBot = false;
   setState({screen:'duelLevels'});
 }
 // Bots are a real (local, non-networked) opponent -- they actually flip
 // and match cards on the same shared deck via botTick()/botClaim() below,
 // they just don't touch Supabase, since there's no second real player.
-function startBotDuelFlow(name){
+function startBotDuelFlow(name, avatarUrl){
   if(!requireAuth()) return;
   state.duelPendingFriendId = null;
   state.duelPendingFriendName = name;
+  state.duelPendingFriendAvatarUrl = avatarUrl || null;
   state.duelPendingIsBot = true;
   setState({screen:'duelLevels'});
 }
@@ -858,6 +860,7 @@ async function createDuelRoom(){
     state.duelIsBot = false;
     state.duelOpponentId = null;
     state.duelOpponentName = '';
+    state.duelOpponentAvatarUrl = null;
     state.duelResultFinalized = false;
     subscribeDuelRoom(room.id);
     state.duelLoading = false;
@@ -932,7 +935,7 @@ async function submitJoinRoom(e){
     subscribeDuelRoom(updated.id);
     state.duelJoinLoading = false;
     setState({screen:'duelLobby'});
-    loadInviteHostName(updated.host_id).then(name=>{ state.duelOpponentName = name; render(); });
+    loadInviteHostInfo(updated.host_id).then(info=>{ state.duelOpponentName = info.name; state.duelOpponentAvatarUrl = info.avatarUrl; render(); });
   }catch(e){
     state.duelJoinLoading = false;
     state.duelJoinError = e.message || String(e);
@@ -945,6 +948,7 @@ function selectDuelFriend(id){
   if(!f) return;
   state.duelPendingFriendId = f.id;
   state.duelPendingFriendName = f.name;
+  state.duelPendingFriendAvatarUrl = f.avatarUrl || null;
   state.duelPendingIsBot = false;
   setState({screen:'duelLevels'});
 }
@@ -968,6 +972,7 @@ function startBotDuel(levelId){
   state.duelRole = 'host';
   state.duelOpponentId = 'bot';
   state.duelOpponentName = state.duelPendingFriendName || (state.lang==='kz'?'Бот':'Бот');
+  state.duelOpponentAvatarUrl = state.duelPendingFriendAvatarUrl || null;
   state.duelDeckIds = deck;
   state.duelFlipped = [];
   state.duelMatches = [];
@@ -1036,6 +1041,7 @@ async function inviteFriendToDuel(friendId, friendName, levelId){
     state.duelIsBot = false;
     state.duelOpponentId = friendId;
     state.duelOpponentName = friendName;
+    state.duelOpponentAvatarUrl = state.duelPendingFriendAvatarUrl || null;
     subscribeDuelRoom(room.id);
     state.duelLoading = false;
     setState({screen:'duelWait'});
@@ -1065,6 +1071,7 @@ async function acceptDuelInvite(){
     state.duelIsBot = false;
     state.duelOpponentId = inv.hostId;
     state.duelOpponentName = inv.hostName;
+    state.duelOpponentAvatarUrl = inv.hostAvatarUrl || null;
     subscribeDuelRoom(updated.id);
     enterDuelCountdown();
   }catch(e){
@@ -1102,7 +1109,7 @@ function onDuelRoomUpdate(row){
   }
   if(row.status==='waiting' && row.guest_id && state.duelRole==='host' && !state.duelOpponentId && state.screen==='duelLobby'){
     state.duelOpponentId = row.guest_id;
-    loadInviteHostName(row.guest_id).then(name=>{ state.duelOpponentName = name; render(); });
+    loadInviteHostInfo(row.guest_id).then(info=>{ state.duelOpponentName = info.name; state.duelOpponentAvatarUrl = info.avatarUrl; render(); });
     render();
     return;
   }
@@ -1995,7 +2002,9 @@ function screenHome(t,s){
   }));
   const displayLive = realLive.concat(botCards);
   const liveCards = displayLive.map(p=>{
-    const goAction = p.isBot?`startBotDuelFlow('${esc(p.name).replace(/'/g,"\'")}')`:`inviteLivePlayer('${p.id}','${esc(p.name).replace(/'/g,"\'")}')`;
+    const escName = esc(p.name).replace(/'/g,"\'");
+    const escAvatar = p.avatarUrl ? esc(p.avatarUrl).replace(/'/g,"\'") : '';
+    const goAction = p.isBot?`startBotDuelFlow('${escName}','${escAvatar}')`:`inviteLivePlayer('${p.id}','${escName}','${escAvatar}')`;
     return `
   <div style="flex:none;width:78px;text-align:center">
   <div style="margin:0 auto;width:68px">${avatarRing(p.name, p.avatarUrl, 68, (p.isBot?'var(--g2)':'linear-gradient(150deg,#5AA184,#0E3B2E)'), (p.isBot?p.botColor:'var(--paper)'), (p.isBot?'#fff':'var(--g7)'), 19)}</div>
@@ -2516,7 +2525,7 @@ function overlayDuelInvite(t,s){
   <div style="position:absolute;inset:0;background:rgba(8,37,28,.55);backdrop-filter:blur(5px)"></div>
   <div style="position:absolute;left:20px;right:20px;bottom:24px;border-radius:26px;background:var(--cream);box-shadow:0 -10px 40px -10px rgba(8,37,28,.5);padding:20px;animation:up .3s cubic-bezier(.2,.85,.2,1) both">
   <div style="display:flex;align-items:center;gap:12px">
-  ${avatarRing(inv.hostName, null, 46, 'linear-gradient(150deg,#1B6B50,#0E3B2E)', 'linear-gradient(150deg,#1B6B50,#0E3B2E)', '#E7C765', 17, 3)}
+  ${avatarRing(inv.hostName, inv.hostAvatarUrl, 46, 'linear-gradient(150deg,#1B6B50,#0E3B2E)', 'linear-gradient(150deg,#1B6B50,#0E3B2E)', '#E7C765', 17, 3)}
   <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:800">${esc(inv.hostName)}</div>
   <div style="font-size:12px;color:var(--mut);margin-top:2px">${s.lang==='kz'?'ойынға шақырды':'приглашает в игру'}</div></div>
   </div>
@@ -2885,7 +2894,7 @@ function screenDuelLobby(t,s){
   ${codeSection}
   <div style="width:100%;max-width:300px">
   ${playerRow(s.lang==='kz'?'Сіз':'Вы', myName, false, s.avatarUrl)}
-  ${playerRow(s.lang==='kz'?'Дос':'Друг', oppName, !hasGuest, null)}
+  ${playerRow(s.lang==='kz'?'Дос':'Друг', oppName, !hasGuest, s.duelOpponentAvatarUrl)}
   </div>
   ${isHost
     ? `<div onclick="${hasGuest?'hostStartRoomCountdown()':''}" data-hover style="margin-top:14px;width:100%;max-width:300px;height:54px;border-radius:18px;display:flex;align-items:center;justify-content:center;gap:9px;${hasGuest?'background:linear-gradient(150deg,#E7C765,#C9A227);cursor:pointer;box-shadow:0 14px 26px -10px rgba(201,162,39,.7)':'background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);cursor:not-allowed'}">
@@ -2991,11 +3000,15 @@ function screenDuelGame(t,s){
   <div id="duelTimerPill" class="timerPill${duelLow?' low':''}" style="flex:none;width:64px;height:36px;border-radius:12px">
   <span id="duelClockVal" style="font-family:var(--fh);font-size:14px;line-height:1;letter-spacing:.02em">${mm(s.duelLeft)}</span></div>
   <div style="flex:1;display:flex;align-items:center;height:36px;border-radius:12px;background:var(--g1);border:1px solid var(--g2);overflow:hidden">
-  <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;height:100%;background:linear-gradient(150deg,#1B6B50,#0E3B2E)">
-  <span style="font-family:var(--fh);font-size:15px;color:#fff">${myCount}</span><span style="font-size:9.5px;color:rgba(255,255,255,.65);text-transform:uppercase;letter-spacing:.05em">${s.lang==='kz'?'Сен':'Ты'}</span>
+  <div style="flex:1;display:flex;align-items:center;gap:6px;height:100%;padding:0 8px;background:linear-gradient(150deg,#1B6B50,#0E3B2E);min-width:0">
+  ${avatarRing(s.name, s.avatarUrl, 24, 'rgba(255,255,255,.35)', 'rgba(255,255,255,.15)', '#fff', 10, 2)}
+  <span style="flex:1;min-width:0;font-size:11px;font-weight:700;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.name)}</span>
+  <span style="font-family:var(--fh);font-size:15px;color:#fff;flex:none">${myCount}</span>
   </div>
-  <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;height:100%">
-  <span style="font-size:9.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.05em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70px">${esc(s.duelOpponentName||'—')}</span><span style="font-family:var(--fh);font-size:15px;color:var(--g8)">${oppCount}</span>
+  <div style="flex:1;display:flex;align-items:center;gap:6px;height:100%;padding:0 8px;min-width:0">
+  <span style="font-family:var(--fh);font-size:15px;color:var(--g8);flex:none">${oppCount}</span>
+  <span style="flex:1;min-width:0;font-size:11px;font-weight:700;color:var(--g8);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right">${esc(s.duelOpponentName||'—')}</span>
+  ${avatarRing(s.duelOpponentName||'?', s.duelOpponentAvatarUrl, 24, 'var(--g3)', 'var(--g2)', 'var(--g7)', 10, 2)}
   </div>
   </div>
   </div>
