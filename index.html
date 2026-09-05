@@ -595,6 +595,12 @@ function subscribeLivePlayers(){
   if(!sb || !state.playerId || liveChannel) return;
   liveChannel = sb.channel('online-players', { config:{ presence:{ key: state.playerId } } });
   liveChannel
+    // A bound listener (even a no-op) so the client actually processes
+    // incoming presence diffs into its internal state -- otherwise
+    // computeLivePlayers()'s on-demand presenceState() read can end up
+    // stale. It deliberately does nothing else (no state/render), so
+    // this still isn't an auto-refresh of what's on screen.
+    .on('presence', {event:'sync'}, ()=>{})
     .subscribe(status=>{
       if(status==='SUBSCRIBED'){
         liveChannel.track({ name: state.name, coins: state.coins, avatarUrl: state.avatarUrl });
