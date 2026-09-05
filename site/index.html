@@ -181,7 +181,7 @@ function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').rep
 
 let state = { screen:'splash', lang:'kz', coins:0, found:[], name:'Ойыншы', city:'', email:'',
   playerId:null, playerNumber:null, avatarUrl:null, bestScore:0, leaderboard:null, boardFilter:'all', myRank:null, unlockedStage:1, currentStage:null,
-  gamesPlayed:0, bestTimeSeconds:null,
+  gamesPlayed:0, bestTimeSeconds:null, duelWins:0, duelLosses:0,
   xp:0, hasFlawlessWin:false, hasFastWin:false, currentStreak:0, lastPlayedDate:null,
   weeklyScore:0, weeklyScoreWeek:null, claimedAchievements:[], screenBeforeAchievements:'profile', screenBeforeCollection:'profile',
   categoryList:[], dailyChallenge:null,
@@ -248,7 +248,9 @@ function persistCloud(){
       weekly_score: state.weeklyScore||0,
       weekly_score_week: state.weeklyScoreWeek,
       claimed_achievements: state.claimedAchievements||[],
-      avatar_url: state.avatarUrl||null
+      avatar_url: state.avatarUrl||null,
+      duel_wins: state.duelWins||0,
+      duel_losses: state.duelLosses||0
     }).eq('id', state.playerId).then(({error})=>{
       if(error){
         console.warn('Supabase save failed:', error.message);
@@ -300,6 +302,8 @@ async function hydratePlayer(uid, defaults){
     state.weeklyScore = row.weekly_score || 0;
     state.weeklyScoreWeek = row.weekly_score_week || null;
     state.claimedAchievements = row.claimed_achievements || [];
+    state.duelWins = row.duel_wins || 0;
+    state.duelLosses = row.duel_losses || 0;
     try{
       localStorage.setItem('mmt:lang', state.lang);
       localStorage.setItem('mmt:coins', String(state.coins));
@@ -433,36 +437,36 @@ async function fetchLeaderboard(filter){
     if(filter==='week'){
       const week = isoWeekLabel(new Date());
       const { data, error } = await sb.from('players')
-        .select('id,name,city,weekly_score,avatar_url')
+        .select('id,name,city,weekly_score,avatar_url,duel_wins,duel_losses')
         .eq('weekly_score_week', week)
         .gt('weekly_score', 0)
         .order('weekly_score',{ascending:false})
         .limit(10);
       if(error) throw error;
-      list = (data||[]).map(r=>({id:r.id,name:displayName(r),city:r.city||'',score:r.weekly_score||0,avatarUrl:r.avatar_url||null,me:r.id===state.playerId}));
+      list = (data||[]).map(r=>({id:r.id,name:displayName(r),city:r.city||'',score:r.weekly_score||0,avatarUrl:r.avatar_url||null,duelWins:r.duel_wins||0,duelLosses:r.duel_losses||0,me:r.id===state.playerId}));
     } else if(filter==='friends'){
       if(!state.friends || !state.friends.length) await fetchFriends();
       const ids = (state.friends||[]).map(f=>f.id);
       if(state.playerId) ids.push(state.playerId);
       if(ids.length){
-        const { data, error } = await sb.from('players').select('id,name,city,best_score,avatar_url').in('id', ids);
+        const { data, error } = await sb.from('players').select('id,name,city,best_score,avatar_url,duel_wins,duel_losses').in('id', ids);
         if(error) throw error;
-        list = (data||[]).map(r=>({id:r.id,name:displayName(r),city:r.city||'',score:r.best_score||0,avatarUrl:r.avatar_url||null,me:r.id===state.playerId}))
+        list = (data||[]).map(r=>({id:r.id,name:displayName(r),city:r.city||'',score:r.best_score||0,avatarUrl:r.avatar_url||null,duelWins:r.duel_wins||0,duelLosses:r.duel_losses||0,me:r.id===state.playerId}))
           .filter(r=>r.score>0 || r.me)
           .sort((a,b)=>b.score-a.score);
       }
     } else {
       const { data, error } = await sb.from('players')
-        .select('id,name,city,best_score,avatar_url')
+        .select('id,name,city,best_score,avatar_url,duel_wins,duel_losses')
         .gt('best_score', 0)
         .order('best_score',{ascending:false})
         .limit(10);
       if(error) throw error;
-      list = (data||[]).map(r=>({id:r.id,name:displayName(r),city:r.city||'',score:r.best_score||0,avatarUrl:r.avatar_url||null,me:r.id===state.playerId}));
+      list = (data||[]).map(r=>({id:r.id,name:displayName(r),city:r.city||'',score:r.best_score||0,avatarUrl:r.avatar_url||null,duelWins:r.duel_wins||0,duelLosses:r.duel_losses||0,me:r.id===state.playerId}));
     }
     if(filter!=='friends' && state.playerId && !list.some(r=>r.me)){
       const col = filter==='week' ? 'weekly_score' : 'best_score';
-      const { data: mine } = await sb.from('players').select('id,name,city,avatar_url,'+col).eq('id',state.playerId).maybeSingle();
+      const { data: mine } = await sb.from('players').select('id,name,city,avatar_url,duel_wins,duel_losses,'+col).eq('id',state.playerId).maybeSingle();
       if(mine){
         let rank = null;
         if(filter==='week'){
@@ -474,7 +478,7 @@ async function fetchLeaderboard(filter){
           await fetchMyRank();
           rank = state.myRank;
         }
-        list.push({id:mine.id,name:displayName(mine),city:mine.city||'',score:mine[col]||0,avatarUrl:mine.avatar_url||null,me:true,rank});
+        list.push({id:mine.id,name:displayName(mine),city:mine.city||'',score:mine[col]||0,avatarUrl:mine.avatar_url||null,duelWins:mine.duel_wins||0,duelLosses:mine.duel_losses||0,me:true,rank});
       }
     }
     state.leaderboard = list;
@@ -1262,11 +1266,18 @@ function computeDuelResult(row){
   const myTime = lastClaimSeconds(myClaims);
   const oppTime = lastClaimSeconds(oppClaims);
   state.duelResult = { myCount, oppCount, myTime, oppTime, win: myCount>oppCount, draw: myCount===oppCount };
+  // Only real opponents count toward the win/loss record shown on the
+  // leaderboard -- a bot duel never touches Supabase in the first place
+  // (duelIsBot), so it can't skew a stat other players can see.
+  if(!state.duelIsBot && myCount!==oppCount){
+    if(myCount>oppCount) state.duelWins = (state.duelWins||0) + 1;
+    else state.duelLosses = (state.duelLosses||0) + 1;
+  }
   if(myCount>oppCount){
     const coins = state.coins + 150;
     state.coins = coins;
-    persist({coins});
   }
+  persist({coins:state.coins});
   if(state.screen!=='duelResult') setState({screen:'duelResult'});
   else render();
 }
@@ -2293,10 +2304,12 @@ function screenBoard(t,s){
     const plinthStyle = 'margin-top:10px;height:'+h+'px;border-radius:14px 14px 0 0;display:flex;align-items:center;justify-content:center;'+
       (rank===1? 'background:linear-gradient(180deg,rgba(231,199,101,.34),rgba(231,199,101,.07))' : 'background:linear-gradient(180deg,rgba(255,255,255,.15),rgba(255,255,255,.03))');
     const name = u.me? u.name+' ('+(s.lang==='kz'?'сен':'ты')+')' : u.name;
+    const duelLine = (u.duelWins||u.duelLosses) ? `${u.duelWins||0} ${s.lang==='kz'?'жеңіс':'побед'}, ${u.duelLosses||0} ${s.lang==='kz'?'жеңіліс':'поражений'}` : '';
     return `<div style="text-align:center">
     <div style="margin:0 auto;width:${sz}px">${avatarRing(u.name, u.avatarUrl, sz, ringBg, fallbackBg, fallbackColor, Math.round(sz/2.7), Math.max(2,Math.round(sz*0.045)), ringShadow)}</div>
     <div style="font-size:12px;font-weight:800;color:#fff;margin-top:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(name)}</div>
     <div style="font-size:11px;font-weight:700;color:#E7C765;margin-top:2px">${u.score.toLocaleString('ru-RU')}</div>
+    ${duelLine?`<div style="font-size:9px;color:rgba(255,255,255,.5);margin-top:1px">${esc(duelLine)}</div>`:''}
     <div style="${plinthStyle}"><span style="font-family:var(--fh);font-size:26px;color:rgba(255,255,255,.9)">${rank}</span></div></div>`;
   }).join('');
   const rest = sorted.slice(3).map((u,i)=>{
@@ -2308,11 +2321,12 @@ function screenBoard(t,s){
     const fallbackColor = me? '#E7C765' : '#14523E';
     const rankColor = me?'rgba(255,255,255,.7)':'#9AC7B3', nameColor = me?'#fff':'#12201B', metaColor = me?'rgba(255,255,255,.55)':'#657771', scoreColor = me?'#E7C765':'#14523E';
     const name = u.name+(me?' ('+(s.lang==='kz'?'сен':'ты')+')':'');
+    const duelLine = (u.duelWins||u.duelLosses) ? `${u.duelWins||0} ${s.lang==='kz'?'жеңіс':'побед'}, ${u.duelLosses||0} ${s.lang==='kz'?'жеңіліс':'поражений'}` : '';
     return `<div style="${rowStyle}">
     <span style="width:22px;font-family:var(--fh);font-size:17px;color:${rankColor};text-align:center">${rank}</span>
     ${avatarRing(u.name, u.avatarUrl, 36, ringBg, fallbackBg, fallbackColor, 14, 2)}
     <div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:700;color:${nameColor};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(name)}</div>
-    <div style="font-size:10.5px;font-weight:600;color:${metaColor};margin-top:1px">${esc(u.city)}</div></div>
+    <div style="font-size:10.5px;font-weight:600;color:${metaColor};margin-top:1px">${esc(u.city)}${duelLine?' · '+esc(duelLine):''}</div></div>
     <span style="font-family:var(--fh);font-size:19px;color:${scoreColor}">${u.score.toLocaleString('ru-RU')}</span></div>`;
   }).join('');
   const filters = [
