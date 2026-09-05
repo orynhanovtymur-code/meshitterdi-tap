@@ -127,12 +127,12 @@ const STR = {
     easyDesc:'Алғашқы қадамға арналған жеңіл деңгей.',mediumDesc:'Зейін мен есте сақтауды сынайды.',hardDesc:'Уақыт шектеулі. Әр жұпқа ×2 ұпай.',
     foundPair:'Жұп табылды',continueBtn:'Жалғастыру',
     victoryTitle:'Керемет!',victoryDescT:'{n} жұпты тауып шықтың',timeUpTitle:'Уақыт бітті!',
-    score:'Ұпай',time:'Уақыт',moves:'Қадам',coins:'Монета',newCardUnlocked:'Жаңа карточка ашылды',
+    score:'Ұпай',time:'Уақыт',moves:'Қадам',coins:'Ұпай',newCardUnlocked:'Жаңа карточка ашылды',
     nextLevel:'Келесі кезең',replay:'Қайта ойнау',share:'Бөлісу',
     home:'Басты',games:'Ойнау',rating:'Рейтинг',profile:'Профиль',navColl:'Жинақ',
     globalTop:'Үздік ойыншылар',overallRating:'Жалпы рейтинг',levelTag:'Деңгей',xpToNext:'Келесі деңгейге',
     gamesPlayed:'Ойналған ойын',bestTime:'Үздік нәтиже',mosquesFound:'Жиналған карточка',
-    invite:'Доспен ойна',inviteDesc:'Әр досқа 200 монета',inviteBtn:'Ойын құру',inviteJoinBtn:'Кодпен қосылу',language:'Тіл',
+    invite:'Доспен ойна',inviteDesc:'Әр досқа 200 ұпай',inviteBtn:'Ойын құру',inviteJoinBtn:'Кодпен қосылу',language:'Тіл',
     shared:'Нәтиже көшірілді — досыңмен бөліс!'},
   ru:{appName:'ДІН МЕН ДӘСТҮР',splashTag:'Играй. Познавай. Учись.',loading:'Загрузка',
     greeting:'Добрый день',heroKicker:'Познавательная игра',heroDesc:'Открывай карточки и находи подходящие пары. С каждой парой узнавай новый факт.',
@@ -143,12 +143,12 @@ const STR = {
     easyDesc:'Лёгкий уровень для первого шага.',mediumDesc:'Проверяет внимание и память.',hardDesc:'Время ограничено. Каждая пара ×2 очков.',
     foundPair:'Пара найдена',continueBtn:'Продолжить',
     victoryTitle:'Отлично!',victoryDescT:'Ты собрал {n} пар',timeUpTitle:'Время вышло!',
-    score:'Очки',time:'Время',moves:'Ходы',coins:'Монеты',newCardUnlocked:'Новая карточка открыта',
+    score:'Очки',time:'Время',moves:'Ходы',coins:'Очки',newCardUnlocked:'Новая карточка открыта',
     nextLevel:'Следующий этап',replay:'Играть заново',share:'Поделиться',
     home:'Главная',games:'Играть',rating:'Рейтинг',profile:'Профиль',navColl:'Коллекция',
     globalTop:'Лучшие игроки',overallRating:'Общий рейтинг',levelTag:'Уровень',xpToNext:'До след. уровня',
     gamesPlayed:'Сыграно игр',bestTime:'Лучший результат',mosquesFound:'Собрано карточек',
-    invite:'Играть с другом',inviteDesc:'200 монет за друга',inviteBtn:'Создать игру',inviteJoinBtn:'Войти по коду',language:'Язык',
+    invite:'Играть с другом',inviteDesc:'200 очков за друга',inviteBtn:'Создать игру',inviteJoinBtn:'Войти по коду',language:'Язык',
     shared:'Результат скопирован — поделись с другом!'}
 };
 
@@ -1556,7 +1556,7 @@ function claimNewAchievements(){
   newlyUnlocked.forEach((a,i)=>{
     setTimeout(()=>{
       const title = state.lang==='kz'?a.titleKz:a.titleRu;
-      const msg = (state.lang==='kz'?'Жаңа жетістік! ':'Новое достижение! ')+title+' — +'+a.rewardCoins+' '+(state.lang==='kz'?'монета':'монет')+', +'+a.rewardXP+' XP';
+      const msg = (state.lang==='kz'?'Жаңа жетістік! ':'Новое достижение! ')+title+' — +'+a.rewardCoins+' '+(state.lang==='kz'?'ұпай':'очков')+', +'+a.rewardXP+' XP';
       toast(msg);
     }, 900 + i*2800);
   });
@@ -2233,14 +2233,14 @@ function overlayCoinsModal(t,s){
   <div style="position:absolute;left:20px;right:20px;bottom:24px;border-radius:26px;background:var(--cream);box-shadow:0 -10px 40px -10px rgba(8,37,28,.5);padding:22px;animation:up .3s cubic-bezier(.2,.85,.2,1) both">
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
   <div style="width:44px;height:44px;border-radius:16px;background:var(--gold1);border:1px solid rgba(201,162,39,.32);display:grid;place-items:center;color:#8A6E10;flex:none">${svg.coin}</div>
-  <h3 style="font-size:19px;text-transform:uppercase;flex:1">${s.lang==='kz'?'Монеталар':'Монеты'}</h3>
+  <h3 style="font-size:19px;text-transform:uppercase;flex:1">${s.lang==='kz'?'Ұпайлар':'Очки'}</h3>
   <div onclick="closeCoinsModal()" data-hover style="width:32px;height:32px;border-radius:11px;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;cursor:pointer;color:var(--g8)">${svg.close}</div>
   </div>
   <div style="font-family:var(--fh);font-size:30px;color:#8A6E10;margin:6px 0 10px">${s.coins.toLocaleString('ru-RU')}</div>
   <p style="margin:0;font-size:13px;line-height:1.6;color:var(--ink)">${s.lang==='kz'
-    ? 'Ойын ойнап, күнделікті сындарды орындап және жетістіктер ашып монета жина.'
-    : 'Играй, выполняй ежедневные испытания и открывай достижения, чтобы копить монеты.'}</p>
-  <h4 style="margin:18px 0 10px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--g7)">${s.lang==='kz'?'Монетаны қайда қолдануға болады?':'Где можно использовать монеты?'}</h4>
+    ? 'Ойын ойнап, күнделікті сындарды орындап және жетістіктер ашып ұпай жина.'
+    : 'Играй, выполняй ежедневные испытания и открывай достижения, чтобы копить очки.'}</p>
+  <h4 style="margin:18px 0 10px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--g7)">${s.lang==='kz'?'Ұпайды қайда қолдануға болады?':'Где можно использовать очки?'}</h4>
   <div style="display:flex;flex-direction:column;gap:9px">
   ${[
     s.lang==='kz' ? 'Жаңа жинақтарды ашу' : 'Открывать новые коллекции',
@@ -2378,7 +2378,7 @@ function screenAchievements(t,s){
     <div style="height:4px;border-radius:3px;background:var(--g2);overflow:hidden;margin-top:8px"><div style="height:100%;width:${pct}%;border-radius:3px;background:${a.unlocked?'linear-gradient(90deg,#5AA184,#2E8365)':'linear-gradient(90deg,#C9A227,#E7C765)'}"></div></div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px">
     <span style="font-size:10px;color:var(--mut)">${a.progress}/${a.target}</span>
-    <span style="font-size:10px;font-weight:800;color:#8A6E10">+${a.rewardCoins} ${s.lang==='kz'?'монета':'монет'} · +${a.rewardXP} XP</span>
+    <span style="font-size:10px;font-weight:800;color:#8A6E10">+${a.rewardCoins} ${s.lang==='kz'?'ұпай':'очков'} · +${a.rewardXP} XP</span>
     </div>
     ${a.unlocked&&a.unlockedAt?`<div style="font-size:10px;color:#2E8365;margin-top:5px;font-weight:700">${s.lang==='kz'?'Ашылды: ':'Открыто: '}${esc(fmtDate(a.unlockedAt))}</div>`:''}
     </div>
