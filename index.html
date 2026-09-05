@@ -181,7 +181,7 @@ function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').rep
 
 let state = { screen:'splash', lang:'kz', coins:0, found:[], name:'Ойыншы', city:'', email:'',
   playerId:null, playerNumber:null, avatarUrl:null, bestScore:0, leaderboard:null, boardFilter:'all', myRank:null, unlockedStage:1, currentStage:null,
-  gamesPlayed:0, bestTimeSeconds:null, duelWins:0, duelLosses:0,
+  gamesPlayed:0, bestTimeSeconds:null, duelWins:0, duelLosses:0, duelDraws:0,
   xp:0, hasFlawlessWin:false, hasFastWin:false, currentStreak:0, lastPlayedDate:null,
   weeklyScore:0, weeklyScoreWeek:null, claimedAchievements:[], screenBeforeAchievements:'profile', screenBeforeCollection:'profile',
   categoryList:[], dailyChallenge:null,
@@ -250,7 +250,8 @@ function persistCloud(){
       claimed_achievements: state.claimedAchievements||[],
       avatar_url: state.avatarUrl||null,
       duel_wins: state.duelWins||0,
-      duel_losses: state.duelLosses||0
+      duel_losses: state.duelLosses||0,
+      duel_draws: state.duelDraws||0
     }).eq('id', state.playerId).then(({error})=>{
       if(error){
         console.warn('Supabase save failed:', error.message);
@@ -304,6 +305,7 @@ async function hydratePlayer(uid, defaults){
     state.claimedAchievements = row.claimed_achievements || [];
     state.duelWins = row.duel_wins || 0;
     state.duelLosses = row.duel_losses || 0;
+    state.duelDraws = row.duel_draws || 0;
     try{
       localStorage.setItem('mmt:lang', state.lang);
       localStorage.setItem('mmt:coins', String(state.coins));
@@ -437,36 +439,36 @@ async function fetchLeaderboard(filter){
     if(filter==='week'){
       const week = isoWeekLabel(new Date());
       const { data, error } = await sb.from('players')
-        .select('id,name,city,weekly_score,avatar_url,duel_wins,duel_losses')
+        .select('id,name,city,weekly_score,avatar_url,duel_wins,duel_losses,duel_draws')
         .eq('weekly_score_week', week)
         .gt('weekly_score', 0)
         .order('weekly_score',{ascending:false})
         .limit(10);
       if(error) throw error;
-      list = (data||[]).map(r=>({id:r.id,name:displayName(r),city:r.city||'',score:r.weekly_score||0,avatarUrl:r.avatar_url||null,duelWins:r.duel_wins||0,duelLosses:r.duel_losses||0,me:r.id===state.playerId}));
+      list = (data||[]).map(r=>({id:r.id,name:displayName(r),city:r.city||'',score:r.weekly_score||0,avatarUrl:r.avatar_url||null,duelWins:r.duel_wins||0,duelLosses:r.duel_losses||0,duelDraws:r.duel_draws||0,me:r.id===state.playerId}));
     } else if(filter==='friends'){
       if(!state.friends || !state.friends.length) await fetchFriends();
       const ids = (state.friends||[]).map(f=>f.id);
       if(state.playerId) ids.push(state.playerId);
       if(ids.length){
-        const { data, error } = await sb.from('players').select('id,name,city,best_score,avatar_url,duel_wins,duel_losses').in('id', ids);
+        const { data, error } = await sb.from('players').select('id,name,city,best_score,avatar_url,duel_wins,duel_losses,duel_draws').in('id', ids);
         if(error) throw error;
-        list = (data||[]).map(r=>({id:r.id,name:displayName(r),city:r.city||'',score:r.best_score||0,avatarUrl:r.avatar_url||null,duelWins:r.duel_wins||0,duelLosses:r.duel_losses||0,me:r.id===state.playerId}))
+        list = (data||[]).map(r=>({id:r.id,name:displayName(r),city:r.city||'',score:r.best_score||0,avatarUrl:r.avatar_url||null,duelWins:r.duel_wins||0,duelLosses:r.duel_losses||0,duelDraws:r.duel_draws||0,me:r.id===state.playerId}))
           .filter(r=>r.score>0 || r.me)
           .sort((a,b)=>b.score-a.score);
       }
     } else {
       const { data, error } = await sb.from('players')
-        .select('id,name,city,best_score,avatar_url,duel_wins,duel_losses')
+        .select('id,name,city,best_score,avatar_url,duel_wins,duel_losses,duel_draws')
         .gt('best_score', 0)
         .order('best_score',{ascending:false})
         .limit(10);
       if(error) throw error;
-      list = (data||[]).map(r=>({id:r.id,name:displayName(r),city:r.city||'',score:r.best_score||0,avatarUrl:r.avatar_url||null,duelWins:r.duel_wins||0,duelLosses:r.duel_losses||0,me:r.id===state.playerId}));
+      list = (data||[]).map(r=>({id:r.id,name:displayName(r),city:r.city||'',score:r.best_score||0,avatarUrl:r.avatar_url||null,duelWins:r.duel_wins||0,duelLosses:r.duel_losses||0,duelDraws:r.duel_draws||0,me:r.id===state.playerId}));
     }
     if(filter!=='friends' && state.playerId && !list.some(r=>r.me)){
       const col = filter==='week' ? 'weekly_score' : 'best_score';
-      const { data: mine } = await sb.from('players').select('id,name,city,avatar_url,duel_wins,duel_losses,'+col).eq('id',state.playerId).maybeSingle();
+      const { data: mine } = await sb.from('players').select('id,name,city,avatar_url,duel_wins,duel_losses,duel_draws,'+col).eq('id',state.playerId).maybeSingle();
       if(mine){
         let rank = null;
         if(filter==='week'){
@@ -478,7 +480,7 @@ async function fetchLeaderboard(filter){
           await fetchMyRank();
           rank = state.myRank;
         }
-        list.push({id:mine.id,name:displayName(mine),city:mine.city||'',score:mine[col]||0,avatarUrl:mine.avatar_url||null,duelWins:mine.duel_wins||0,duelLosses:mine.duel_losses||0,me:true,rank});
+        list.push({id:mine.id,name:displayName(mine),city:mine.city||'',score:mine[col]||0,avatarUrl:mine.avatar_url||null,duelWins:mine.duel_wins||0,duelLosses:mine.duel_losses||0,duelDraws:mine.duel_draws||0,me:true,rank});
       }
     }
     state.leaderboard = list;
@@ -1266,10 +1268,9 @@ function computeDuelResult(row){
   const myTime = lastClaimSeconds(myClaims);
   const oppTime = lastClaimSeconds(oppClaims);
   state.duelResult = { myCount, oppCount, myTime, oppTime, win: myCount>oppCount, draw: myCount===oppCount };
-  if(myCount!==oppCount){
-    if(myCount>oppCount) state.duelWins = (state.duelWins||0) + 1;
-    else state.duelLosses = (state.duelLosses||0) + 1;
-  }
+  if(myCount>oppCount) state.duelWins = (state.duelWins||0) + 1;
+  else if(myCount<oppCount) state.duelLosses = (state.duelLosses||0) + 1;
+  else state.duelDraws = (state.duelDraws||0) + 1;
   if(myCount>oppCount){
     const coins = state.coins + 150;
     state.coins = coins;
@@ -2301,7 +2302,7 @@ function screenBoard(t,s){
     const plinthStyle = 'margin-top:10px;height:'+h+'px;border-radius:14px 14px 0 0;display:flex;align-items:center;justify-content:center;'+
       (rank===1? 'background:linear-gradient(180deg,rgba(231,199,101,.34),rgba(231,199,101,.07))' : 'background:linear-gradient(180deg,rgba(255,255,255,.15),rgba(255,255,255,.03))');
     const name = u.me? u.name+' ('+(s.lang==='kz'?'сен':'ты')+')' : u.name;
-    const duelLine = (u.duelWins||u.duelLosses) ? `${u.duelWins||0} ${s.lang==='kz'?'жеңіс':'побед'}, ${u.duelLosses||0} ${s.lang==='kz'?'жеңіліс':'поражений'}` : '';
+    const duelLine = (u.duelWins||u.duelLosses||u.duelDraws) ? `${u.duelWins||0} ${s.lang==='kz'?'жеңіс':'побед'}, ${u.duelLosses||0} ${s.lang==='kz'?'жеңіліс':'поражений'}, ${u.duelDraws||0} ${s.lang==='kz'?'тең':'ничьих'}` : '';
     return `<div style="text-align:center">
     <div style="margin:0 auto;width:${sz}px">${avatarRing(u.name, u.avatarUrl, sz, ringBg, fallbackBg, fallbackColor, Math.round(sz/2.7), Math.max(2,Math.round(sz*0.045)), ringShadow)}</div>
     <div style="font-size:12px;font-weight:800;color:#fff;margin-top:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(name)}</div>
@@ -2318,7 +2319,7 @@ function screenBoard(t,s){
     const fallbackColor = me? '#E7C765' : '#14523E';
     const rankColor = me?'rgba(255,255,255,.7)':'#9AC7B3', nameColor = me?'#fff':'#12201B', metaColor = me?'rgba(255,255,255,.55)':'#657771', scoreColor = me?'#E7C765':'#14523E';
     const name = u.name+(me?' ('+(s.lang==='kz'?'сен':'ты')+')':'');
-    const duelLine = (u.duelWins||u.duelLosses) ? `${u.duelWins||0} ${s.lang==='kz'?'жеңіс':'побед'}, ${u.duelLosses||0} ${s.lang==='kz'?'жеңіліс':'поражений'}` : '';
+    const duelLine = (u.duelWins||u.duelLosses||u.duelDraws) ? `${u.duelWins||0} ${s.lang==='kz'?'жеңіс':'побед'}, ${u.duelLosses||0} ${s.lang==='kz'?'жеңіліс':'поражений'}, ${u.duelDraws||0} ${s.lang==='kz'?'тең':'ничьих'}` : '';
     return `<div style="${rowStyle}">
     <span style="width:22px;font-family:var(--fh);font-size:17px;color:${rankColor};text-align:center">${rank}</span>
     ${avatarRing(u.name, u.avatarUrl, 36, ringBg, fallbackBg, fallbackColor, 14, 2)}
@@ -2394,9 +2395,11 @@ function screenProfile(t,s){
   <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#8A6E10;margin-top:3px">${esc(t.coins)}</div></div></div>
   <div style="margin:10px 18px 0;padding:15px;border-radius:22px;background:var(--paper);border:1px solid var(--line);display:flex;align-items:center;gap:14px">
   <div style="width:44px;height:44px;border-radius:16px;background:var(--g1);border:1px solid var(--g2);display:grid;place-items:center;color:var(--g7);flex:none">${svg.invite}</div>
-  <div style="flex:1;display:flex;gap:20px">
-  <div><div style="font-family:var(--fh);font-size:22px;line-height:1;color:#2E8365">${s.duelWins||0}</div><div style="font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);margin-top:3px">${s.lang==='kz'?'Жеңіс':'Побед'}</div></div>
-  <div><div style="font-family:var(--fh);font-size:22px;line-height:1;color:#A03232">${s.duelLosses||0}</div><div style="font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);margin-top:3px">${s.lang==='kz'?'Жеңіліс':'Поражений'}</div></div>
+  <div style="flex:1;display:flex;gap:12px">
+  <div><div style="font-family:var(--fh);font-size:19px;line-height:1;color:var(--g8)">${(s.duelWins||0)+(s.duelLosses||0)+(s.duelDraws||0)}</div><div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin-top:3px">${s.lang==='kz'?'Ойын':'Игр'}</div></div>
+  <div><div style="font-family:var(--fh);font-size:19px;line-height:1;color:#2E8365">${s.duelWins||0}</div><div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin-top:3px">${s.lang==='kz'?'Жеңіс':'Побед'}</div></div>
+  <div><div style="font-family:var(--fh);font-size:19px;line-height:1;color:#A03232">${s.duelLosses||0}</div><div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin-top:3px">${s.lang==='kz'?'Жеңіліс':'Поражений'}</div></div>
+  <div><div style="font-family:var(--fh);font-size:19px;line-height:1;color:#A0793D">${s.duelDraws||0}</div><div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin-top:3px">${s.lang==='kz'?'Тең':'Ничьих'}</div></div>
   </div></div>
   <div onclick="goBoard()" data-hover style="margin:14px 18px 0;padding:17px;border-radius:24px;background:var(--paper);border:1px solid var(--line);display:flex;align-items:center;gap:14px;cursor:pointer">
   <div style="width:44px;height:44px;border-radius:16px;background:var(--g1);border:1px solid var(--g2);display:grid;place-items:center;color:var(--g7);flex:none">${svg.rating}</div>
