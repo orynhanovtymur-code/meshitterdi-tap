@@ -178,7 +178,7 @@ const CHIP_OFF = 'height:24px;padding:0 11px;border-radius:8px;background:transp
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 let state = { screen:'splash', lang:'kz', coins:1240, found:[], name:'Ойыншы', city:'', email:'',
-  playerId:null, bestScore:0, leaderboard:null, boardFilter:'all', myRank:null, unlockedStage:1, currentStage:null,
+  playerId:null, playerNumber:null, bestScore:0, leaderboard:null, boardFilter:'all', myRank:null, unlockedStage:1, currentStage:null,
   gamesPlayed:0, bestTimeSeconds:null,
   xp:0, hasFlawlessWin:false, hasFastWin:false, currentStreak:0, lastPlayedDate:null,
   weeklyScore:0, weeklyScoreWeek:null, claimedAchievements:[], screenBeforeAchievements:'profile', screenBeforeCollection:'profile',
@@ -275,6 +275,7 @@ async function hydratePlayer(uid, defaults){
     row = created;
   }
   if(row){
+    state.playerNumber = row.player_number!=null ? row.player_number : null;
     state.name = row.name || state.name;
     state.city = row.city || state.city || '';
     state.lang = row.lang || state.lang;
@@ -396,7 +397,7 @@ async function logout(){
   if(sb && state.globalChannel){ sb.removeChannel(state.globalChannel); }
   state.globalChannel = null;
   teardownDuelChannel();
-  state.playerId = null; state.coins = 1240; state.found = []; state.name = 'Ойыншы'; state.city = ''; state.email='';
+  state.playerId = null; state.playerNumber = null; state.coins = 1240; state.found = []; state.name = 'Ойыншы'; state.city = ''; state.email='';
   state.bestScore = 0; state.leaderboard = null; state.authMode='login'; state.authError=''; state.authInfo='';
   state.friends = []; state.incomingDuelInvite=null; state.myFriendCode=null; state.unlockedStage=1;
   try{
@@ -2421,6 +2422,7 @@ function screenSettings(t,s){
   <h3 style="font-size:24px;text-transform:uppercase">${s.lang==='kz'?'Аккаунт баптаулары':'Настройки аккаунта'}</h3>
   </div>
   <form onsubmit="submitSettings(event)" style="padding:18px 22px 0">
+  ${s.playerNumber!=null?`<div style="margin-bottom:12px"><label class="glabel">ID</label><input class="ginput" value="${esc('ID '+String(s.playerNumber).padStart(5,'0'))}" disabled style="opacity:.6;font-family:var(--fh);letter-spacing:.08em"></div>`:''}
   <div style="margin-bottom:12px"><label class="glabel">Email</label><input class="ginput" value="${esc(s.email)}" disabled style="opacity:.6"></div>
   <div style="margin-bottom:12px"><label class="glabel">${s.lang==='kz'?'Аты-жөні':'Имя и фамилия'}</label><input id="set_name" class="ginput" value="${esc(s.name)}" required></div>
   <div style="margin-bottom:18px"><label class="glabel">${s.lang==='kz'?'Өңірі':'Регион'}</label><input id="set_city" class="ginput" value="${esc(s.city)}" required></div>
