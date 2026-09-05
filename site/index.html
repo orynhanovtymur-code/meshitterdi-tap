@@ -1994,7 +1994,6 @@ function screenHome(t,s){
   <div style="font-family:var(--fh);font-size:20px;line-height:1.1;margin-top:1px">${esc(s.name)}</div></div>
   <div onclick="openCoinsModal()" data-hover style="display:flex;align-items:center;gap:5px;height:32px;padding:0 11px;border-radius:11px;background:var(--gold1);border:1px solid rgba(201,162,39,.34);color:#8A6E10;cursor:pointer">
   ${svg.coin}<span style="font-size:13px;font-weight:800;letter-spacing:.01em">${s.coins.toLocaleString('ru-RU')}</span></div>
-  <div onclick="toggleLang()" data-hover style="width:32px;height:32px;border-radius:11px;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;font-family:var(--fh);font-size:12px;color:var(--g7);cursor:pointer;letter-spacing:.04em">${s.lang==='kz'?'ҚАЗ':'РУС'}</div>
   </div>
   <div style="margin:0 18px;position:relative;border-radius:30px;overflow:hidden;background:linear-gradient(160deg,#1B6B50 0%,#0E3B2E 52%,#08251C 100%);box-shadow:0 26px 50px -22px rgba(8,37,28,.62);animation:up .5s cubic-bezier(.2,.8,.2,1) both">
   <div style="position:absolute;inset:0;opacity:.42;background:repeating-conic-gradient(from 22.5deg at 82% 12%,rgba(255,255,255,.06) 0deg 11deg,transparent 11deg 22.5deg)"></div>
@@ -2010,14 +2009,7 @@ function screenHome(t,s){
   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="8.5" cy="8" r="3"/><path d="M2.5 20c0-3 2.7-5 6-5s6 2 6 5"/><circle cx="17" cy="8.5" r="2.4"/><path d="M15.8 12.2c2.3.3 4.2 1.9 4.7 4.3"/></svg>
   <span style="font-family:var(--fh);font-size:15px;color:#fff;text-transform:uppercase;letter-spacing:.03em">${s.lang==='kz'?'Доспен ойнау':'Играть с другом'}</span>
   </div>
-  <div style="display:flex;gap:8px;margin-top:16px">
-  <div style="flex:1;padding:11px 12px;border-radius:15px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.11)">
-  <div style="font-family:var(--fh);font-size:22px;color:#fff;line-height:1">${s.found.length}<span style="font-size:12px;color:rgba(255,255,255,.42)">/${ITEMS.length}</span></div>
-  <div style="font-size:9.5px;letter-spacing:.15em;text-transform:uppercase;color:rgba(255,255,255,.45);margin-top:4px">${esc(t.collection)}</div></div>
-  <div style="flex:1;padding:11px 12px;border-radius:15px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.11)">
-  <div style="font-family:var(--fh);font-size:22px;color:#fff;line-height:1;text-transform:uppercase">${s.myRank?(s.myRank+'-'+t.rank):'—'}</div>
-  <div style="font-size:9.5px;letter-spacing:.15em;text-transform:uppercase;color:rgba(255,255,255,.45);margin-top:4px">${esc(t.inRating)}</div></div>
-  </div></div></div>
+  </div></div>
   ${liveHtml}
   ${dailyHtml}
   ${todayHtml}
