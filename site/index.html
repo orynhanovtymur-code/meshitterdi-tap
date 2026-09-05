@@ -190,7 +190,7 @@ let state = { screen:'splash', lang:'kz', coins:0, found:[], name:'Ойыншы'
   duelOpponentId:null, duelOpponentName:'', duelResult:null, duelResultFinalized:false, duelDeclinedMsg:'',
   duelPendingFriendId:null, duelPendingFriendName:'',
   duelStartedAt:null, duelJoinError:'', duelJoinLoading:false,
-  friends:[], friendsLoading:false, globalChannel:null,
+  friends:[], friendsLoading:false, globalChannel:null, livePlayers:[],
   showCoinsModal:false, showTodayFactModal:false, viewCategoryId:null, detailItemId:null,
   incomingDuelInvite:null,
   inviteLoading:false, inviteInfo:'', myFriendCode:null,
@@ -253,6 +253,7 @@ function persistCloud(){
         }
       } else {
         cloudSaveFailNotified = false;
+        retrackPresence();
       }
     });
   }, 600);
@@ -313,6 +314,7 @@ async function bootAuth(){
       await hydratePlayer(session.user.id);
       cloudReady = true;
       subscribeGlobalInvites();
+      subscribeLivePlayers();
       fetchMyRank();
       if(state.screen!=='splash' && state.screen!=='game') render();
     }
@@ -346,6 +348,7 @@ async function submitRegister(e){
       await hydratePlayer(data.session.user.id);
       cloudReady = true;
       subscribeGlobalInvites();
+      subscribeLivePlayers();
       fetchMyRank();
       state.authLoading = false;
       setState({screen:'home'});
@@ -381,6 +384,7 @@ async function submitLogin(e){
     await hydratePlayer(data.session.user.id);
     cloudReady = true;
     subscribeGlobalInvites();
+    subscribeLivePlayers();
     fetchMyRank();
     state.authLoading = false;
     setState({screen:'home'});
@@ -397,6 +401,7 @@ async function logout(){
   if(sb && state.globalChannel){ sb.removeChannel(state.globalChannel); }
   state.globalChannel = null;
   teardownDuelChannel();
+  teardownLiveChannel();
   state.playerId = null; state.playerNumber = null; state.coins = 0; state.found = []; state.name = 'Ойыншы'; state.city = ''; state.email='';
   state.bestScore = 0; state.leaderboard = null; state.authMode='login'; state.authError=''; state.authInfo='';
   state.friends = []; state.incomingDuelInvite=null; state.myFriendCode=null; state.unlockedStage=1;
@@ -547,6 +552,56 @@ async function loadInviteHostName(hostId){
   }catch(e){
     return state.lang==='kz' ? 'Досың' : 'Друг';
   }
+}
+
+// "LIVE ойыншылар" on Home: pure Realtime Presence, no table/RLS
+// involved. Every authenticated client tracks itself on one shared
+// channel; presenceState() is always the live, synced truth, so
+// "Жаңарту" just re-derives the list from it instead of a network call.
+let liveChannel = null;
+function syncLivePlayers(){
+  if(!liveChannel) return;
+  const presenceState = liveChannel.presenceState();
+  const list = [];
+  Object.keys(presenceState).forEach(key=>{
+    if(key===state.playerId) return;
+    const presences = presenceState[key];
+    if(presences && presences.length){
+      const p = presences[0];
+      list.push({ id:key, name:p.name||'Ойыншы', coins:p.coins||0 });
+    }
+  });
+  state.livePlayers = list.slice(0,10);
+  if(state.screen==='home') render();
+}
+function subscribeLivePlayers(){
+  if(!sb || !state.playerId || liveChannel) return;
+  liveChannel = sb.channel('online-players', { config:{ presence:{ key: state.playerId } } });
+  liveChannel
+    .on('presence', {event:'sync'}, syncLivePlayers)
+    .on('presence', {event:'join'}, syncLivePlayers)
+    .on('presence', {event:'leave'}, syncLivePlayers)
+    .subscribe(status=>{
+      if(status==='SUBSCRIBED') liveChannel.track({ name: state.name, coins: state.coins });
+    });
+}
+function retrackPresence(){
+  if(liveChannel) liveChannel.track({ name: state.name, coins: state.coins });
+}
+function teardownLiveChannel(){
+  if(sb && liveChannel){ sb.removeChannel(liveChannel); }
+  liveChannel = null;
+  state.livePlayers = [];
+}
+function refreshLivePlayers(){
+  syncLivePlayers();
+  toast(state.lang==='kz' ? 'Жаңартылды' : 'Обновлено');
+}
+function inviteLivePlayer(id, name){
+  if(!requireAuth()) return;
+  state.duelPendingFriendId = id;
+  state.duelPendingFriendName = name;
+  setState({screen:'duelLevels'});
 }
 
 function genFriendCode(){
@@ -1731,6 +1786,27 @@ function screenHome(t,s){
   ${svg.arrow.replaceAll('{{s}}','13').replace('{{c}}','#1B6B50')}
   </div>
   </div>` : '';
+  const liveCards = (s.livePlayers||[]).map(p=>`
+  <div style="flex:none;width:104px;padding:12px 10px;border-radius:18px;background:var(--g1);border:1px solid var(--g2);text-align:center">
+  <div style="position:relative;width:40px;height:40px;margin:0 auto">
+  <div style="width:100%;height:100%;border-radius:14px;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;font-family:var(--fh);font-size:14px;color:var(--g7)">${esc(initials(p.name))}</div>
+  <span style="position:absolute;bottom:-1px;right:-1px;width:10px;height:10px;border-radius:50%;background:#2E8365;border:2px solid var(--g1)"></span>
+  </div>
+  <div style="margin-top:8px;font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</div>
+  <div style="font-size:10.5px;color:var(--mut);margin-top:2px">${p.coins.toLocaleString('ru-RU')} ${s.lang==='kz'?'ұпай':'очков'}</div>
+  <div onclick="inviteLivePlayer('${p.id}','${esc(p.name).replace(/'/g,"\'")}')" data-hover style="margin-top:8px;height:28px;border-radius:10px;background:linear-gradient(150deg,#1B6B50,#0E3B2E);display:grid;place-items:center;cursor:pointer">
+  <span style="font-size:10px;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:.03em">${s.lang==='kz'?'Ойнау':'Играть'}</span>
+  </div>
+  </div>`).join('');
+  const liveHtml = `<div style="margin:14px 18px 0;padding:16px;border-radius:22px;background:var(--paper);border:1px solid var(--line)">
+  <div style="display:flex;align-items:center;justify-content:space-between">
+  <span style="font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--g6);font-weight:800">${s.lang==='kz'?'Live ойыншылар':'Live игроки'}</span>
+  <div onclick="refreshLivePlayers()" data-hover style="width:28px;height:28px;border-radius:9px;background:var(--g1);border:1px solid var(--g2);display:grid;place-items:center;cursor:pointer;color:var(--g7)">${svg.replay}</div>
+  </div>
+  ${(s.livePlayers||[]).length
+    ? `<div class="sc" style="display:flex;gap:10px;margin-top:12px;overflow-x:auto">${liveCards}</div>`
+    : `<div style="margin-top:12px;text-align:center;padding:10px 4px;color:var(--mut);font-size:12px;line-height:1.6">${s.lang==='kz'?'Қазір ешкім онлайн емес.':'Сейчас никого нет онлайн.'}</div>`}
+  </div>`;
   const collHtml = ITEMS.map(m=>{
     const has = s.found.indexOf(m.id)>-1;
     return `<div style="flex:none;width:96px">
@@ -1776,6 +1852,7 @@ function screenHome(t,s){
   </div></div></div>
   ${dailyHtml}
   ${todayHtml}
+  ${liveHtml}
   <div style="display:flex;align-items:baseline;justify-content:space-between;padding:26px 22px 12px">
   <h3 style="font-size:23px;text-transform:uppercase">${esc(t.collectionTitle)}</h3>
   <div onclick="goCollection()" data-hover style="display:flex;align-items:center;gap:4px;cursor:pointer">
