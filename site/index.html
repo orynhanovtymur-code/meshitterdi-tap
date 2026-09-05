@@ -1266,10 +1266,7 @@ function computeDuelResult(row){
   const myTime = lastClaimSeconds(myClaims);
   const oppTime = lastClaimSeconds(oppClaims);
   state.duelResult = { myCount, oppCount, myTime, oppTime, win: myCount>oppCount, draw: myCount===oppCount };
-  // Only real opponents count toward the win/loss record shown on the
-  // leaderboard -- a bot duel never touches Supabase in the first place
-  // (duelIsBot), so it can't skew a stat other players can see.
-  if(!state.duelIsBot && myCount!==oppCount){
+  if(myCount!==oppCount){
     if(myCount>oppCount) state.duelWins = (state.duelWins||0) + 1;
     else state.duelLosses = (state.duelLosses||0) + 1;
   }
