@@ -192,7 +192,7 @@ let state = { screen:'splash', lang:'kz', coins:0, found:[], name:'Ойыншы'
   duelCols:4, duelSeconds:0, duelLeft:0,
   duelStartedAt:null, duelJoinError:'', duelJoinLoading:false,
   friends:[], friendsLoading:false, globalChannel:null, livePlayers:[],
-  showCoinsModal:false, showTodayFactModal:false, viewCategoryId:null, detailItemId:null,
+  showCoinsModal:false, showTodayFactModal:false, viewCategoryId:null, detailItemId:null, collectionPage:1,
   incomingDuelInvite:null,
   inviteLoading:false, inviteInfo:'', myFriendCode:null,
   addFriendError:'', addFriendInfo:'', addFriendLoading:false,
@@ -755,9 +755,11 @@ function openCollectionCategory(catId){
   const cat = CATEGORIES.find(c=>c.id===catId);
   const hasItems = cat && ITEMS.some(m=>m.categoryId===cat.id);
   if(!cat || !hasItems){ toast(state.lang==='kz' ? 'Жақында қосылады' : 'Скоро будет доступно'); return; }
-  setState({screen:'collectionGrid', viewCategoryId:catId});
+  setState({screen:'collectionGrid', viewCategoryId:catId, collectionPage:1});
 }
 function backToCollectionHub(){ setState({screen:'collection', viewCategoryId:null}); }
+const COLLECTION_PAGE_SIZE = 24;
+function collectionGoToPage(n){ setState({collectionPage:n}); }
 function openItemDetail(id){
   setState({detailItemId:id});
 }
@@ -1956,7 +1958,7 @@ function screenHome(t,s){
   </div>
   <div class="sc" style="display:flex;gap:14px;margin-top:12px;overflow-x:auto;padding:2px 18px 4px">${liveCards}</div>
   </div>`;
-  const collHtml = ITEMS.map(m=>{
+  const collHtml = ITEMS.slice(0,10).map(m=>{
     const has = s.found.indexOf(m.id)>-1;
     return `<div style="flex:none;width:96px">
     <div style="position:relative;height:106px;border-radius:19px;overflow:hidden;background:var(--g2);border:1px solid var(--line)">
@@ -2430,6 +2432,9 @@ function screenCollection(t,s){
 function screenCollectionGrid(t,s){
   const cat = CATEGORIES.find(c=>c.id===s.viewCategoryId) || CATEGORIES[0] || {id:null,name:{kz:'',ru:''}};
   const items = ITEMS.filter(m=>m.categoryId===cat.id);
+  const totalPages = Math.max(1, Math.ceil(items.length / COLLECTION_PAGE_SIZE));
+  const page = Math.min(Math.max(s.collectionPage||1, 1), totalPages);
+  const pageItems = items.slice((page-1)*COLLECTION_PAGE_SIZE, page*COLLECTION_PAGE_SIZE);
   const collCard = m=>{
     const has = s.found.indexOf(m.id)>-1;
     return `<div ${has?`onclick="openItemDetail('${m.id}')" data-hover`:''} style="position:relative;aspect-ratio:1/1;border-radius:18px;overflow:hidden;background:var(--g2);border:1px solid var(--line);cursor:${has?'pointer':'default'}">
@@ -2448,7 +2453,18 @@ function screenCollectionGrid(t,s){
   <h3 style="font-size:19px;text-transform:uppercase;flex:1;line-height:1.15">${esc(cat.name[s.lang])}</h3>
   <span style="font-size:11.5px;font-weight:700;color:var(--mut)">${s.found.length}/${items.length}</span>
   </div>
-  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:9px;padding:0 18px">${items.map(collCard).join('')}</div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:9px;padding:0 18px">${pageItems.map(collCard).join('')}</div>
+  ${collectionPager(page, totalPages)}
+  </div>`;
+}
+
+function collectionPager(page, totalPages){
+  if(totalPages<=1) return '';
+  const btn = (disabled, onclick, label)=>`<div ${disabled?'':`onclick="${onclick}" data-hover`} style="width:38px;height:38px;border-radius:13px;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;cursor:${disabled?'default':'pointer'};color:${disabled?'var(--line)':'var(--g8)'}">${label}</div>`;
+  return `<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-top:16px;padding:0 18px">
+  ${btn(page<=1, `collectionGoToPage(${page-1})`, svg.back)}
+  <span style="font-size:12.5px;font-weight:700;color:var(--mut);min-width:64px;text-align:center">${page} / ${totalPages}</span>
+  ${btn(page>=totalPages, `collectionGoToPage(${page+1})`, `<span style="transform:scaleX(-1);display:inline-block">${svg.back}</span>`)}
   </div>`;
 }
 
