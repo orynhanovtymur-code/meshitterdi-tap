@@ -2569,12 +2569,25 @@ function overlayNav(t,s){
 
 function renderQuickAuthForm(s){
   return `<form onsubmit="submitQuickAuth(event)">
-  <div style="margin-bottom:18px"><label class="glabel">${s.lang==='kz'?'Атың':'Имя'}</label><input id="auth_name" class="ginput" required placeholder="${s.lang==='kz'?'Мысалы: Айдана':'Например: Айдана'}" autofocus></div>
+  <div style="margin-bottom:18px"><label class="glabel">${s.lang==='kz'?'Атың':'Имя'}</label><input id="auth_name" class="ginput" required placeholder="${s.lang==='kz'?'Мысалы: Азамат':'Например: Азамат'}" autofocus></div>
   <button type="submit" data-hover style="width:100%;height:52px;border-radius:18px;background:linear-gradient(150deg,#E7C765,#C9A227);font-family:var(--fh);font-size:17px;color:#3A2D06;text-transform:uppercase;letter-spacing:.03em;box-shadow:0 14px 26px -12px rgba(201,162,39,.65)" ${s.authLoading?'disabled':''}>${s.authLoading?'…':(s.lang==='kz'?'Ойынды бастау':'Начать игру')}</button>
   </form>`;
 }
 
+function screenAuthLoading(t,s){
+  return `<div class="sc" style="position:absolute;inset:0;background:linear-gradient(168deg,#14523E 0%,#0E3B2E 46%,#08251C 100%);overflow:hidden;animation:fade .3s ease">
+  <div style="position:absolute;inset:0;opacity:.4;background:repeating-conic-gradient(from 22.5deg at 50% 38%,rgba(255,255,255,.055) 0deg 11deg,transparent 11deg 22.5deg)"></div>
+  <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 44px;text-align:center">
+  <div style="width:64px;height:64px;border-radius:22px;background:linear-gradient(150deg,rgba(255,255,255,.22),rgba(255,255,255,.04));border:1px solid rgba(231,199,101,.42);display:grid;place-items:center;color:#E7C765;animation:float 2.2s ease-in-out infinite">
+  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-8.2M20 21v-8.2M4.2 12.8C4.2 8.4 7.7 4.9 12 4.9s7.8 3.5 7.8 7.9M12 4.9V2.4M1.8 21h20.4M9 21v-3.7a3 3 0 0 1 6 0V21"/></svg>
+  </div>
+  <span style="margin-top:22px;font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;color:rgba(255,255,255,.4)">${esc(t.loading)}</span>
+  </div>
+  </div>`;
+}
+
 function screenAuth(t,s){
+  if(s.authLoading) return screenAuthLoading(t,s);
   return `<div class="sc" style="position:absolute;inset:0;overflow-y:auto;background:var(--cream);animation:fade .3s ease">
   <div style="position:relative;padding:44px 24px 28px;text-align:center;background:linear-gradient(168deg,#14523E 0%,#0E3B2E 46%,#08251C 100%);overflow:hidden">
   <div style="position:absolute;inset:0;opacity:.4;background:repeating-conic-gradient(from 22.5deg at 50% 20%,rgba(255,255,255,.055) 0deg 11deg,transparent 11deg 22.5deg)"></div>
